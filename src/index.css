@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Space Grotesk', sans-serif;
+  @apply bg-background-light dark:bg-background-dark text-earthy-navy dark:text-white transition-colors duration-300;
+}
+
+/* Grilla */
+.number-grid-item {
+    @apply border border-olive-drab/20 aspect-square flex items-center justify-center rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-primary/10;
+}
+
+/* Estado: VENDIDO (Rojo) */
+.number-grid-item.sold {
+    /* Rojo para números vendidos */
+    @apply bg-red-500 text-white cursor-not-allowed line-through border-red-600 hover:bg-red-500;
+}
+
+/* Estado: PENDIENTE (Amarillo) - NUEVO */
+.number-grid-item.pending {
+    @apply bg-yellow-400 text-yellow-900 cursor-wait border-yellow-500 hover:bg-yellow-500;
+}
+
+/* Estado: SELECCIONADO (Verde) */
+.number-grid-item.selected {
+    @apply bg-primary text-earthy-navy font-black border-primary shadow-[0_0_15px_rgba(66,212,17,0.4)] hover:bg-primary;
+}
