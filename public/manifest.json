@@ -1,19 +1,19 @@
 {
   "short_name": "Rifa Club",
-  "name": "Rifa Club de pesca y caza Río Toltén",
+  "name": "Rifa Club Deportivo Flecha",
   "icons": [
     {
-      "src": "logoclub.png",
+      "src": "logo.png",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "logoclub.png",
+      "src": "logo.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "logoclub.png",
+      "src": "logo.png",
       "type": "image/png",
       "sizes": "512x512"
     }
