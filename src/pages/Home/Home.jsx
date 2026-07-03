@@ -26,9 +26,9 @@ const Home = () => {
 
   // Configuración de premios
   const prizes = [
-    { title: "1er: Mecedora de madera", desc: "100% Artesanal", img: `${process.env.PUBLIC_URL}/assets/silla.jpeg` },
-    { title: "2do: Torta para 20 personas", desc: "Sabor sin definir", img: `${process.env.PUBLIC_URL}/assets/torta.jpeg` },
-    { title: "3er: Premio sorpresa", desc: "", img: `${process.env.PUBLIC_URL}/assets/sorpresa.jpeg` }
+    { title: "1er: Mecedora de madera", desc: "100% Artesanal (Imagen referencial) ", img: `${process.env.PUBLIC_URL}/assets/mecedora.png` },
+    { title: "2do: Torta para 20 personas", desc: "Sabor sin definir", img: `${process.env.PUBLIC_URL}/assets/torta.png` },
+    { title: "3er: Premio sorpresa", desc: "", img: `${process.env.PUBLIC_URL}/assets/regalo.png` }
   ];
 
   // Escuchar cambios en tiempo real (Vendidos y Pendientes)

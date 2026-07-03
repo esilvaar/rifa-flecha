@@ -30,6 +30,7 @@ const Dashboard = () => {
   const [approvedUsers, setApprovedUsers] = useState([]);
   const [activeTab, setActiveTab] = useState('grid'); // 'grid' | 'control'
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [selectedSeller, setSelectedSeller] = useState(null); // { nombre: string, email: string }
   
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -267,11 +268,21 @@ const Dashboard = () => {
     });
   };
 
-  // Cálculo de Estadísticas para la central
   const getSalesCount = (email) => {
     return Object.values(numberData).filter(
       ticket => ticket.status === 'approved' && ticket.vendedor?.toLowerCase().trim() === email.toLowerCase().trim()
     ).length;
+  };
+
+  const getSellerTickets = (email) => {
+    return Object.entries(numberData)
+      .filter(([_, ticket]) => ticket.status === 'approved' && ticket.vendedor?.toLowerCase().trim() === email.toLowerCase().trim())
+      .map(([num, ticket]) => ({
+        id: num,
+        nombre: ticket.nombre,
+        telefono: ticket.telefono,
+      }))
+      .sort((a, b) => parseInt(a.id) - parseInt(b.id));
   };
 
   const getTopSellers = () => {
@@ -705,8 +716,18 @@ const Dashboard = () => {
                           <tr key={usr.id} className="border-b border-olive-drab/5 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                             <td className="py-3.5 px-2 font-bold">{usr.nombre}</td>
                             <td className="py-3.5 px-2 opacity-70 text-xs">{usr.email}</td>
-                            <td className="py-3.5 px-2 text-right font-black text-primary">
-                              {sales} N°
+                            <td className="py-3.5 px-2 text-right">
+                              <div className="flex items-center justify-end gap-3">
+                                <span className="font-black text-primary">{sales} N°</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedSeller({ nombre: usr.nombre, email: usr.email })}
+                                  className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg text-primary flex items-center justify-center transition-colors"
+                                  title="Ver números vendidos"
+                                >
+                                  <span className="material-symbols-outlined text-lg">visibility</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -764,6 +785,71 @@ const Dashboard = () => {
           </div>
         )}
       </main>
+      {/* Seller Sold Tickets Modal */}
+      {selectedSeller && (() => {
+        const tickets = getSellerTickets(selectedSeller.email);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white dark:bg-earthy-navy w-full max-w-2xl rounded-2xl shadow-2xl border border-olive-drab/20 p-6 flex flex-col max-h-[85vh]">
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-olive-drab/10">
+                <div>
+                  <h3 className="text-xl font-bold dark:text-white">Números Vendidos</h3>
+                  <p className="text-xs opacity-70 mt-1 dark:text-gray-300">
+                    Vendedor: <span className="font-bold text-primary">{selectedSeller.nombre}</span> ({selectedSeller.email})
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSeller(null)}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-500 dark:text-gray-300"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 pr-1">
+                {tickets.length > 0 ? (
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-olive-drab/10 opacity-60 text-xs uppercase font-bold">
+                        <th className="py-2 px-2">Número Rifa</th>
+                        <th className="py-2 px-2">Comprador</th>
+                        <th className="py-2 px-2">Teléfono</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tickets.map((t) => (
+                        <tr key={t.id} className="border-b border-olive-drab/5 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                          <td className="py-3 px-2 font-black text-primary">#{t.id}</td>
+                          <td className="py-3 px-2 font-medium">{t.nombre}</td>
+                          <td className="py-3 px-2 opacity-80">{t.telefono}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="py-12 text-center opacity-50 italic text-sm">
+                    Este usuario no registra números vendidos.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex justify-between items-center pt-3 border-t border-olive-drab/10">
+                <span className="text-xs font-bold opacity-75">
+                  Total vendidos: <span className="text-primary font-black">{tickets.length}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSeller(null)}
+                  className="px-5 py-2.5 rounded-xl font-bold bg-primary text-earthy-navy hover:scale-[1.02] transition-transform"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
