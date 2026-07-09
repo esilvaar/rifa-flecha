@@ -1,7 +1,7 @@
 // src/config.js
 
 // Cantidad total de números de la rifa (ej: 250, 300, 1000)
-export const TOTAL_NUMBERS = 200;
+export const TOTAL_NUMBERS = 220;
 
 // Cuántos números mostrar por cada tabla/página (Ideal: 100)
 export const NUMBERS_PER_PAGE = 100;
