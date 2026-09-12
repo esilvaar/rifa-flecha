@@ -1,32 +1,57 @@
-// src/App.js
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { OrganizationProvider } from './contexts/OrganizationContext';
 import { routerConfig } from './router/router-config';
+import RoleGuard from './components/RoleGuard';
 import Login from './pages/Login/Login';
 import Home from './pages/Home/Home';
 import Dashboard from './pages/Admin/Dashboard';
-import ProtectedRoute from './components/ProtectedRoute';
+import CatalogoVentas from './pages/Vendedor/CatalogoVentas';
+import AceptarInvitacion from './pages/Invitacion/AceptarInvitacion';
 import './App.css';
 
 function App() {
   return (
     <AuthProvider>
-      <HashRouter future={routerConfig.future}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route 
-            path="/admin" 
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </HashRouter>
+      <OrganizationProvider>
+        <HashRouter future={routerConfig.future}>
+          <Routes>
+            {/* Página Principal / Catálogo */}
+            <Route path="/" element={<Home />} />
+            <Route path="/rifa/:rifaId" element={<Home />} />
+
+            {/* Autenticación */}
+            <Route path="/login" element={<Login />} />
+
+            {/* Canje de Invitaciones */}
+            <Route path="/invitacion" element={<AceptarInvitacion />} />
+
+            {/* Panel de Administración protegido para Admins */}
+            <Route
+              path="/admin"
+              element={
+                <RoleGuard allowedRoles={['admin']}>
+                  <Dashboard />
+                </RoleGuard>
+              }
+            />
+
+            {/* Portal de Ventas para Vendedores (también accesible por Admins) */}
+            <Route
+              path="/vendedor"
+              element={
+                <RoleGuard allowedRoles={['vendedor', 'admin']}>
+                  <CatalogoVentas />
+                </RoleGuard>
+              }
+            />
+
+            {/* Ruta comodín */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </HashRouter>
+      </OrganizationProvider>
     </AuthProvider>
   );
 }

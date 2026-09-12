@@ -1,14 +1,20 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../services/supabase";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { useOrganization } from '../../hooks/useOrganization';
 import RifaGrid from "../../components/Rifa/RifaGrid";
 import { TOTAL_NUMBERS, TOTAL_PAGES } from "../../config";
 
 const Home = () => {
+  const { rifaId } = useParams();
+  const { user } = useAuth();
+  const { role, activeOrg } = useOrganization();
   const [soldNumbers, setSoldNumbers] = useState([]);
   const [pendingNumbers, setPendingNumbers] = useState([]);
   const [selectedNumber, setSelectedNumber] = useState(null);
   const [pageIndex, setPageIndex] = useState(0);
+  const [activeRifa, setActiveRifa] = useState(null);
 
   // Estado para el formulario de reserva y alertas
   const [showModal, setShowModal] = useState(false);
@@ -24,57 +30,75 @@ const Home = () => {
 
   const navigate = useNavigate();
 
-  // Configuración de premios
-  const prizes = [
-    { title: "1er: Mecedora de madera", desc: "100% Artesanal (Imagen referencial) ", img: `${process.env.PUBLIC_URL}/assets/mecedora.png` },
-    { title: "2do: Torta para 20 personas", desc: "Sabor sin definir", img: `${process.env.PUBLIC_URL}/assets/torta.png` },
-    { title: "3er: Premio sorpresa", desc: "", img: `${process.env.PUBLIC_URL}/assets/regalo.png` }
+  // Configuración de premios por defecto
+  const defaultPrizes = [
+    { title: "1er Lugar", desc: "Premio principal de la rifa", img: `${process.env.PUBLIC_URL}/assets/mecedora.png` },
+    { title: "2do Lugar", desc: "Segundo premio del sorteo", img: `${process.env.PUBLIC_URL}/assets/torta.png` },
+    { title: "3er Lugar", desc: "Premio sorpresa", img: `${process.env.PUBLIC_URL}/assets/regalo.png` }
   ];
 
-  // Escuchar cambios en tiempo real (Vendidos y Pendientes)
-  useEffect(() => {
-    const processVendidos = (data) => {
-      const sold = [];
-      const pending = [];
+  const prizes = (activeRifa?.premios && Array.isArray(activeRifa.premios) && activeRifa.premios.length > 0)
+    ? activeRifa.premios
+    : defaultPrizes;
 
-      data.forEach((row) => {
-        const num = parseInt(row.id, 10);
-        if (row.status === 'pending') {
-          pending.push(num);
-        } else {
-          sold.push(num);
-        }
-      });
-      setSoldNumbers(sold);
-      setPendingNumbers(pending);
-    };
-
-    const fetchVendidos = async () => {
-      const { data, error } = await supabase.from('vendidos').select('*');
-      if (error) {
-        console.error("Error fetching vendidos:", error);
-        return;
+  const fetchBoletosData = useCallback(async () => {
+    try {
+      // 1. Intentar cargar por rifaId específico o la primera rifa activa
+      let query = supabase.from('rifas').select('*');
+      if (rifaId) {
+        query = query.eq('id', rifaId);
+      } else {
+        query = query.eq('estado', 'activa').order('created_at', { ascending: false });
       }
-      processVendidos(data);
-    };
 
-    fetchVendidos();
+      const { data: rifasData } = await query.limit(1);
 
-    const channel = supabase
-      .channel('vendidos-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'vendidos' },
-        () => {
-          fetchVendidos();
+      if (rifasData && rifasData.length > 0) {
+        const currentRifa = rifasData[0];
+        setActiveRifa(currentRifa);
+
+        const { data: boletosData } = await supabase
+          .from('boletos')
+          .select('*')
+          .eq('rifa_id', currentRifa.id);
+
+        if (boletosData) {
+          const sold = [];
+          const pending = [];
+          boletosData.forEach((b) => {
+            if (b.estado === 'pagado') sold.push(b.numero);
+            else if (b.estado === 'reservado') pending.push(b.numero);
+          });
+          setSoldNumbers(sold);
+          setPendingNumbers(pending);
+          return;
         }
-      )
-      .subscribe();
+      }
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+      // 2. Fallback silencioso a tabla vendidos
+      const { data } = await supabase.from('vendidos').select('*');
+      if (data) {
+        const sold = [];
+        const pending = [];
+        data.forEach((row) => {
+          const num = parseInt(row.id, 10);
+          if (row.status === 'pending') {
+            pending.push(num);
+          } else {
+            sold.push(num);
+          }
+        });
+        setSoldNumbers(sold);
+        setPendingNumbers(pending);
+      }
+    } catch (err) {
+      console.warn("Información de rifa aún no disponible:", err);
+    }
+  }, [rifaId]);
+
+  useEffect(() => {
+    fetchBoletosData();
+  }, [fetchBoletosData]);
 
   const handleNumberClick = (number) => {
     setSelectedNumber(selectedNumber === number ? null : number);
@@ -82,35 +106,61 @@ const Home = () => {
 
   const handleReserve = async (e) => {
     e.preventDefault();
-    if (!selectedNumber || !buyerName || !buyerPhone) return;
+    if (!selectedNumber || !buyerName.trim() || !buyerPhone.trim()) return;
 
     setIsReserving(true);
     try {
-      const { error } = await supabase.from('vendidos').insert({
-        id: selectedNumber,
-        nombre: buyerName,
-        telefono: buyerPhone,
-        status: 'pending' // Se guarda como pendiente para revisión del admin
-      });
-      if (error) throw error;
+      if (activeRifa?.id) {
+        // Intentar RPC atómico para reservar
+        const { error: rpcErr } = await supabase.rpc('reserve_boleto', {
+          p_rifa_id: activeRifa.id,
+          p_numero: selectedNumber,
+          p_nombre: buyerName.trim(),
+          p_telefono: buyerPhone.trim(),
+        });
+
+        if (rpcErr) {
+          // Fallback a actualización directa si el RPC aún no fue aplicado
+          const { error: updateErr } = await supabase
+            .from('boletos')
+            .update({
+              nombre_comprador: buyerName.trim(),
+              telefono_comprador: buyerPhone.trim(),
+              estado: 'reservado',
+            })
+            .eq('rifa_id', activeRifa.id)
+            .eq('numero', selectedNumber);
+
+          if (updateErr) throw updateErr;
+        }
+      } else {
+        const { error } = await supabase.from('vendidos').insert({
+          id: selectedNumber,
+          nombre: buyerName,
+          telefono: buyerPhone,
+          status: 'pending',
+        });
+        if (error) throw error;
+      }
 
       setShowModal(false);
       setAlertModal({
         show: true,
         title: '¡Reserva Realizada!',
-        message: `¡El número ${selectedNumber} ha sido reservado correctamente! Por favor, espera la confirmación del administrador.`,
-        type: 'success'
+        message: `¡El número ${selectedNumber} ha sido reservado correctamente! Espera la confirmación del organizador.`,
+        type: 'success',
       });
       setSelectedNumber(null);
       setBuyerName("");
       setBuyerPhone("");
+      await fetchBoletosData();
     } catch (error) {
       console.error("Error reservando:", error);
       setAlertModal({
         show: true,
         title: 'Número no Disponible',
-        message: 'Lo sentimos, este número ya fue reservado o comprado por otra persona.',
-        type: 'error'
+        message: error.message || 'Lo sentimos, este número ya fue reservado o comprado por otra persona.',
+        type: 'error',
       });
     } finally {
       setIsReserving(false);
@@ -124,19 +174,38 @@ const Home = () => {
       <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-olive-drab/10">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-primary">
-              <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="h-10 w-auto" />
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-xl font-bold shadow-sm">
+              🎟️
             </div>
-            <h2 className="text-xl font-bold tracking-tight hidden sm:block">RIFA <span className="text-primary uppercase">Club Deportivo Flecha</span></h2>
+            <div>
+              <h2 className="text-base font-black tracking-tight uppercase dark:text-white leading-tight">
+                {activeRifa ? activeRifa.titulo : "Sistema de Gestión de Rifas"}
+              </h2>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                {activeRifa ? "Sorteo y Venta Online" : "Plataforma de Rifas"}
+              </p>
+            </div>
           </div>
           <nav className="hidden md:flex items-center gap-8">
             <a href="#premios" className="text-sm font-semibold hover:text-primary transition-colors">Premios</a>
             <a href="#comprar" className="text-sm font-semibold hover:text-primary transition-colors">Comprar</a>
           </nav>
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/login')} className="bg-primary text-white px-6 py-2 rounded-lg font-bold text-sm hover:scale-105 transition-transform">
-              Iniciar Sesión
-            </button>
+          <div className="flex items-center gap-3">
+            {user ? (
+              <button
+                onClick={() => navigate(role === 'admin' ? '/admin' : '/vendedor')}
+                className="bg-primary text-white px-5 py-2 rounded-xl font-bold text-xs hover:opacity-90 transition shadow-md shadow-primary/20 flex items-center gap-2"
+              >
+                <span>{role === 'admin' ? '⚙️ Panel Admin' : '🎟️ Portal Vendedor'}</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/login')}
+                className="bg-primary text-white px-5 py-2 rounded-xl font-bold text-xs hover:scale-105 transition-transform shadow-md shadow-primary/20"
+              >
+                Iniciar Sesión
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -145,17 +214,56 @@ const Home = () => {
 
         {/* --- HERO SECTION (Principal) --- */}
         <section className="py-12">
-          <div className="flex flex-col gap-10 md:flex-row items-center">
+          <div className="flex flex-col md:flex-row items-center gap-10">
             <div className="flex flex-col gap-6 flex-1">
               <div className="flex flex-col gap-4">
                 <h1 className="text-4xl md:text-6xl font-black leading-tight tracking-tighter uppercase dark:text-white">
-                  Gran Rifa <br /><span className="text-primary">A Beneficio</span>
+                  {activeRifa ? (
+                    <span>{activeRifa.titulo}</span>
+                  ) : (
+                    <>Gran Rifa <br /><span className="text-primary">A Beneficio</span></>
+                  )}
                 </h1>
                 <p className="text-lg opacity-90 leading-relaxed dark:text-gray-300">
-                  Participa para ganar increíbles premios artesanales. Apoya a nuestro club reservando tu número online de forma rápida y segura.
+                  {activeRifa?.descripcion || "Participa para ganar increíbles premios. Apoya reservando tu número online de forma rápida y segura."}
                 </p>
+                {activeRifa && (
+                  <div className="flex items-center gap-3 text-sm font-semibold flex-wrap">
+                    <span className="px-3 py-1 bg-primary/10 text-primary rounded-xl">
+                      Valor: ${parseFloat(activeRifa.precio).toLocaleString()} por boleto
+                    </span>
+                    <span className="text-gray-500">
+                      Total: {activeRifa.total_boletos} números
+                    </span>
+                    {activeRifa.fecha_sorteo && (
+                      <span className="px-3 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl">
+                        📅 Sorteo: {new Date(activeRifa.fecha_sorteo).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Imagen Destacada del Premio si está configurada */}
+            {activeRifa?.imagen_url && (() => {
+              const [url, hash] = activeRifa.imagen_url.split('#');
+              const params = new URLSearchParams(hash || '');
+              const fit = params.get('fit') || 'cover';
+              const pos = params.get('pos') || 'center';
+
+              return (
+                <div className="w-full md:w-[380px] lg:w-[440px] aspect-video md:aspect-square rounded-3xl overflow-hidden shadow-2xl border border-olive-drab/20 bg-white dark:bg-gray-800 flex items-center justify-center p-2 group">
+                  <img
+                    src={url}
+                    alt={activeRifa.titulo}
+                    style={{ objectFit: fit, objectPosition: pos }}
+                    onError={(e) => { e.target.parentElement.style.display = 'none'; }}
+                    className="w-full h-full rounded-2xl group-hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+              );
+            })()}
           </div>
         </section>
 
@@ -169,7 +277,12 @@ const Home = () => {
             {prizes.map((prize, idx) => (
               <div key={idx} className="group cursor-pointer">
                 <div className="aspect-square bg-white dark:bg-gray-800 rounded-xl mb-4 p-4 flex items-center justify-center border border-olive-drab/10 transition-all duration-500 group-hover:border-primary/50">
-                  <img src={prize.img} alt={prize.title} className="max-h-full max-w-full object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-500" />
+                  <img
+                    src={prize.img}
+                    alt={prize.title}
+                    onError={(e) => { e.target.src = `${process.env.PUBLIC_URL}/assets/regalo.png`; }}
+                    className="max-h-full max-w-full object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-500"
+                  />
                 </div>
                 <h3 className="font-bold text-lg dark:text-white">{prize.title}</h3>
                 <p className="text-sm text-olive-drab">{prize.desc}</p>
@@ -186,7 +299,7 @@ const Home = () => {
             <div className="flex-1">
               <div className="mb-8">
                 <h2 className="text-3xl font-black uppercase mb-2 dark:text-white">Elige tu número</h2>
-                <p className="opacity-70 dark:text-gray-400">Haz clic en los números disponibles. <span className="font-bold text-primary">Valor: $1.000</span></p>
+                <p className="opacity-70 dark:text-gray-400">Haz clic en los números disponibles. <span className="font-bold text-primary">Valor: ${activeRifa ? parseFloat(activeRifa.precio).toLocaleString() : '1.000'}</span></p>
               </div>
 
               {/* Leyenda */}
@@ -197,25 +310,37 @@ const Home = () => {
                 <div className="flex items-center gap-2"><div className="size-4 rounded bg-red-300 dark:bg-red-700"></div> <span>Vendido</span></div>
               </div>
 
-              {/* Grilla */}
-              <RifaGrid
-                soldNumbers={soldNumbers}
-                pendingNumbers={pendingNumbers}
-                currentNumber={selectedNumber}
-                onNumberClick={handleNumberClick}
-                pageIndex={pageIndex}
-              />
+              {/* Grilla dinámica */}
+              {(() => {
+                const totalHomeNumbers = activeRifa?.total_boletos || 100;
+                const totalHomePages = Math.max(1, Math.ceil(totalHomeNumbers / 100));
 
-              {/* Paginación */}
-              <div className="flex items-center justify-between mt-6 bg-white dark:bg-earthy-navy/30 p-4 rounded-xl border border-olive-drab/10">
-                <button onClick={() => setPageIndex((p) => Math.max(0, p - 1))} disabled={pageIndex === 0} className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 dark:text-white">
-                  <span className="material-symbols-outlined">arrow_back</span> Anterior
-                </button>
-                <span className="text-sm font-bold dark:text-gray-300">Página {pageIndex + 1} de {TOTAL_PAGES}</span>
-                <button onClick={() => setPageIndex((p) => Math.min(TOTAL_PAGES - 1, p + 1))} disabled={pageIndex === TOTAL_PAGES - 1} className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 dark:text-white">
-                  Siguiente <span className="material-symbols-outlined">arrow_forward</span>
-                </button>
-              </div>
+                return (
+                  <>
+                    <RifaGrid
+                      soldNumbers={soldNumbers}
+                      pendingNumbers={pendingNumbers}
+                      currentNumber={selectedNumber}
+                      onNumberClick={handleNumberClick}
+                      pageIndex={pageIndex}
+                      totalNumbers={totalHomeNumbers}
+                    />
+
+                    {/* Paginación */}
+                    <div className="flex items-center justify-between mt-6 bg-white dark:bg-earthy-navy/30 p-4 rounded-xl border border-olive-drab/10">
+                      <button onClick={() => setPageIndex((p) => Math.max(0, p - 1))} disabled={pageIndex === 0} className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 dark:text-white">
+                        <span className="material-symbols-outlined">arrow_back</span> Anterior
+                      </button>
+                      <span className="text-sm font-bold dark:text-gray-300">
+                        Página {pageIndex + 1} de {totalHomePages} ({totalHomeNumbers} números)
+                      </span>
+                      <button onClick={() => setPageIndex((p) => Math.min(totalHomePages - 1, p + 1))} disabled={pageIndex >= totalHomePages - 1} className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 dark:text-white">
+                        Siguiente <span className="material-symbols-outlined">arrow_forward</span>
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Lado Derecho: Resumen */}
@@ -237,7 +362,9 @@ const Home = () => {
                   </div>
                   <div className="flex justify-between items-center pt-4 border-t border-olive-drab/10">
                     <span className="text-lg font-bold dark:text-white">Total</span>
-                    <span className="text-2xl font-black text-primary">{selectedNumber !== null ? "$1.000" : "$0"}</span>
+                    <span className="text-2xl font-black text-primary">
+                      {selectedNumber !== null ? (activeRifa ? `$${parseFloat(activeRifa.precio).toLocaleString()}` : "$1.000") : "$0"}
+                    </span>
                   </div>
                 </div>
 
@@ -256,6 +383,20 @@ const Home = () => {
             </aside>
           </div>
         </section>
+
+        {/* --- TÉRMINOS Y CONDICIONES (si están configurados) --- */}
+        {activeRifa?.terminos && (
+          <section className="py-12 border-t border-olive-drab/10" id="terminos">
+            <div className="bg-white dark:bg-gray-800/60 p-8 rounded-3xl border border-olive-drab/10 space-y-3">
+              <h3 className="text-lg font-bold flex items-center gap-2 dark:text-white">
+                <span className="text-primary">📋</span> Términos y Condiciones del Sorteo
+              </h3>
+              <p className="text-sm opacity-80 leading-relaxed whitespace-pre-line dark:text-gray-300">
+                {activeRifa.terminos}
+              </p>
+            </div>
+          </section>
+        )}
       </main>
 
       {/* --- MODAL DE RESERVA --- */}
@@ -303,22 +444,26 @@ const Home = () => {
       )}
 
       {/* --- FOOTER --- */}
-      <footer className="bg-earthy-navy text-white/60 py-12 mt-20 border-t border-white/5">
+      <footer className="bg-earthy-navy text-white/70 py-12 mt-20 border-t border-white/10">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-10 text-center md:text-left">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3 text-white">
-              <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="h-12 w-auto grayscale opacity-80" />
+              <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center text-xl">
+                🎟️
+              </div>
               <div>
-                <h2 className="text-sm text-primary font-bold tracking-tight uppercase">Club Deportivo Flecha</h2>
-                <p className="text-xs ">Nueva Toltén</p>
+                <h2 className="text-sm text-primary font-bold tracking-tight uppercase">
+                  {activeRifa ? activeRifa.titulo : "Sistema de Gestión de Rifas"}
+                </h2>
+                <p className="text-xs text-white/50">Plataforma Segura de Sorteos</p>
               </div>
             </div>
-            <p className="text-xs max-w-md">
-              Esta actividad se realiza a beneficio de nuestro club para asegurar su adecuada planificación y continuidad.
+            <p className="text-xs max-w-md text-white/60">
+              {activeRifa?.descripcion || "Participa seleccionando tus números de la suerte. El registro y la reserva se gestionan de forma transparente e inmediata."}
             </p>
           </div>
-          <div className="pt-8 mt-8 border-t border-white/5 text-[10px] uppercase font-bold tracking-widest text-center">
-            © 2026 Club Deportivo Flecha - Todos los derechos reservados
+          <div className="pt-8 mt-8 border-t border-white/5 text-[11px] text-center text-white/40">
+            Desarrollado y administrado con <span className="font-semibold text-white/70">Sistema de Gestión de Rifas</span>
           </div>
         </div>
       </footer>

@@ -2,13 +2,22 @@ import React from 'react';
 import { useWindowSize } from '../../hooks/useWindowSize';
 import { NUMBERS_PER_PAGE, TOTAL_NUMBERS } from '../../config';
 
-const RifaGrid = ({ soldNumbers, pendingNumbers = [], currentNumber, onNumberClick, pageIndex, isAdmin = false }) => {
+const RifaGrid = ({
+  soldNumbers = [],
+  pendingNumbers = [],
+  currentNumber,
+  onNumberClick,
+  pageIndex = 0,
+  isAdmin = false,
+  totalNumbers = 100,
+  numbersPerPage = NUMBERS_PER_PAGE
+}) => {
     const { width } = useWindowSize();
     const isMobile = width < 768;
     const numCols = isMobile ? 5 : 10;
     
-    const startNumber = pageIndex * NUMBERS_PER_PAGE;
-    const endNumber = Math.min(startNumber + NUMBERS_PER_PAGE, TOTAL_NUMBERS);
+    const startNumber = pageIndex * numbersPerPage;
+    const endNumber = Math.min(startNumber + numbersPerPage, totalNumbers);
     
     const numbersToRender = [];
     for (let i = startNumber + 1; i <= endNumber; i++) {
