@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { formatSlug } from '../utils/slugUtils';
 
 /**
  * Crea una nueva organización y asigna al usuario actual como administrador.
@@ -58,6 +59,38 @@ export const createOrganization = async (nombre) => {
 };
 
 /**
+ * Verifica si un slug está disponible o si ya está en uso por otra rifa.
+ *
+ * @param {string} slug - Slug a verificar
+ * @param {string} [excludeRifaId=null] - ID de la rifa actual a excluir si se está editando
+ * @returns {Promise<boolean>} true si está disponible, false si ya existe
+ */
+export const checkSlugAvailable = async (slug, excludeRifaId = null) => {
+  if (!slug) return false;
+  const clean = formatSlug(slug);
+  if (!clean) return false;
+
+  let query = supabase
+    .from('rifas')
+    .select('id')
+    .eq('slug', clean);
+
+  if (excludeRifaId) {
+    query = query.neq('id', excludeRifaId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    // Si la columna slug aún no ha sido creada en la base de datos de Supabase, no bloquear
+    console.warn('Aviso comprobando disponibilidad de slug:', error);
+    return true;
+  }
+
+  return !data;
+};
+
+/**
  * Obtiene las rifas pertenecientes a una organización.
  *
  * @param {string} orgId - UUID de la organización
@@ -84,30 +117,48 @@ export const getOrganizationRifas = async (orgId) => {
  * Crea una nueva rifa y genera los boletos correspondientes.
  *
  * @param {string} orgId - UUID de la organización
- * @param {Object} rifaData - Datos de la rifa ({ titulo, descripcion, total_boletos, precio, fecha_sorteo })
+ * @param {Object} rifaData - Datos de la rifa ({ titulo, slug, descripcion, total_boletos, precio, fecha_sorteo })
  * @returns {Promise<Object>} Rifa creada
  */
 export const createRifaWithBoletos = async (orgId, rifaData) => {
   if (!orgId) throw new Error('Se requiere orgId para crear una rifa.');
 
   const total = parseInt(rifaData.total_boletos, 10) || 100;
+  const calculatedSlug = formatSlug(rifaData.slug || rifaData.titulo) || null;
 
   // 1. Insertar la rifa
+  const insertPayload = {
+    org_id: orgId,
+    titulo: rifaData.titulo,
+    descripcion: rifaData.descripcion || '',
+    total_boletos: total,
+    precio: parseFloat(rifaData.precio) || 0,
+    fecha_sorteo: rifaData.fecha_sorteo || null,
+    estado: 'activa',
+  };
+
+  if (calculatedSlug) {
+    insertPayload.slug = calculatedSlug;
+  }
+
   const { data: rifa, error: rifaErr } = await supabase
     .from('rifas')
-    .insert({
-      org_id: orgId,
-      titulo: rifaData.titulo,
-      descripcion: rifaData.descripcion || '',
-      total_boletos: total,
-      precio: parseFloat(rifaData.precio) || 0,
-      fecha_sorteo: rifaData.fecha_sorteo || null,
-      estado: 'activa',
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
   if (rifaErr) {
+    // Si falla por columna slug no existente, reintentar sin slug
+    if (rifaErr.code === 'PGRST204' && insertPayload.slug) {
+      delete insertPayload.slug;
+      const { data: retryData, error: retryErr } = await supabase
+        .from('rifas')
+        .insert(insertPayload)
+        .select()
+        .single();
+      if (retryErr) throw new Error(retryErr.message || 'No fue posible crear la rifa.');
+      return retryData;
+    }
     throw new Error(rifaErr.message || 'No fue posible crear la rifa.');
   }
 

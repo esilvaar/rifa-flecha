@@ -3,8 +3,10 @@ import {
   updateRifa,
   uploadRifaImage,
   getOrgUploadedImages,
-  deleteOrgImage
+  deleteOrgImage,
+  checkSlugAvailable,
 } from '../../../services/organizationService';
+import { formatSlug } from '../../../utils/slugUtils';
 
 const DEFAULT_PRESETS = [
   { title: "Premio Principal", desc: "Gran premio del sorteo", img: `${process.env.PUBLIC_URL}/assets/mecedora.png` },
@@ -33,6 +35,8 @@ const serializeImageConfig = (url, fit, pos) => {
 
 const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotification }) => {
   const [titulo, setTitulo] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugStatus, setSlugStatus] = useState({ state: 'idle', message: '' }); // 'idle' | 'checking' | 'available' | 'taken'
   const [descripcion, setDescripcion] = useState('');
 
   // Estados de la Foto Principal (con ajuste de posición y encuadre)
@@ -64,7 +68,7 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
       const images = await getOrgUploadedImages(activeOrg.id);
       setOrgGallery(images);
     } catch (err) {
-      console.warn('Error al cargar galería:', err);
+      console.warn("No se pudo cargar la galería:", err);
     } finally {
       setLoadingGallery(false);
     }
@@ -74,10 +78,12 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
     loadGallery();
   }, [loadGallery]);
 
-  // Cargar datos de la rifa seleccionada
+  // Sincronizar formulario al cambiar la rifa seleccionada
   useEffect(() => {
     if (selectedRifa) {
       setTitulo(selectedRifa.titulo || '');
+      setSlug(selectedRifa.slug || formatSlug(selectedRifa.titulo) || '');
+      setSlugStatus({ state: selectedRifa.slug ? 'available' : 'idle', message: '' });
       setDescripcion(selectedRifa.descripcion || '');
 
       const parsedImg = parseImageConfig(selectedRifa.imagen_url);
@@ -95,6 +101,36 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
       }
     }
   }, [selectedRifa]);
+
+  // Verificación en tiempo real de disponibilidad del slug
+  useEffect(() => {
+    if (!slug.trim() || !selectedRifa?.id) {
+      setSlugStatus({ state: 'idle', message: '' });
+      return;
+    }
+
+    const clean = formatSlug(slug);
+    if (selectedRifa.slug && clean === selectedRifa.slug) {
+      setSlugStatus({ state: 'available', message: 'Slug actual de esta rifa' });
+      return;
+    }
+
+    setSlugStatus({ state: 'checking', message: 'Comprobando...' });
+    const timer = setTimeout(async () => {
+      try {
+        const isAvailable = await checkSlugAvailable(clean, selectedRifa.id);
+        if (isAvailable) {
+          setSlugStatus({ state: 'available', message: '¡Disponible!' });
+        } else {
+          setSlugStatus({ state: 'taken', message: 'Ya en uso por otra rifa' });
+        }
+      } catch (err) {
+        setSlugStatus({ state: 'idle', message: '' });
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [slug, selectedRifa?.id, selectedRifa?.slug]);
 
   // Subir imagen para la portada / banner principal
   const handleUploadMainImage = async (e) => {
@@ -219,12 +255,19 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
       return;
     }
 
+    const cleanSlug = formatSlug(slug);
+    if (slugStatus.state === 'taken') {
+      showNotification(`El alias o enlace "${cleanSlug}" ya está en uso por otra rifa. Elige otro diferente.`, 'error');
+      return;
+    }
+
     setSaving(true);
     try {
       const finalImageUrl = serializeImageConfig(mainImageUrl, mainImageFit, mainImagePos);
 
       const updates = {
         titulo: titulo.trim(),
+        slug: cleanSlug || null,
         descripcion: descripcion.trim(),
         imagen_url: finalImageUrl,
         fecha_sorteo: fechaSorteo ? new Date(fechaSorteo).toISOString() : null,
@@ -252,7 +295,7 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
     );
   }
 
-  const publicUrl = `${window.location.origin}/#/rifa/${selectedRifa.id}`;
+  const publicUrl = `${window.location.origin}/#/rifa/${slug || selectedRifa.slug || selectedRifa.id}`;
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -313,6 +356,44 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                 placeholder="Ej. Gran Rifa Anual Bomberos Voluntarios"
                 className="w-full px-3.5 py-2.5 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none"
               />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400">
+                  Enlace Amigable (Slug / Alias corto)
+                </label>
+                {slugStatus.state === 'checking' && (
+                  <span className="text-[11px] text-gray-400 flex items-center gap-1">
+                    <span className="animate-spin text-xs">⏳</span> Comprobando...
+                  </span>
+                )}
+                {slugStatus.state === 'available' && (
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                    ✓ Disponible
+                  </span>
+                )}
+                {slugStatus.state === 'taken' && (
+                  <span className="text-[11px] text-red-500 font-bold flex items-center gap-1">
+                    ✕ Ya en uso por otra rifa
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 overflow-hidden focus-within:ring-2 focus-within:ring-primary/20">
+                <span className="px-3 text-[11px] text-gray-400 font-mono select-none bg-gray-100/70 dark:bg-gray-800/60 border-r border-gray-200 dark:border-gray-600 py-2.5">
+                  /#/rifa/
+                </span>
+                <input
+                  type="text"
+                  value={slug}
+                  onChange={(e) => setSlug(formatSlug(e.target.value))}
+                  placeholder="ej. pancho, gran-sorteo-2026"
+                  className="w-full px-3 py-2.5 text-xs bg-transparent outline-none font-mono font-medium dark:text-white"
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Enlace para tus compradores: <strong className="text-gray-600 dark:text-gray-300 font-mono">{window.location.origin}/#/rifa/{slug || selectedRifa.id}</strong>
+              </p>
             </div>
 
             <div>

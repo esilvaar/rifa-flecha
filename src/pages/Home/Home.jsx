@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useOrganization } from '../../hooks/useOrganization';
 import RifaGrid from "../../components/Rifa/RifaGrid";
 import { TOTAL_NUMBERS, TOTAL_PAGES } from "../../config";
+import { isUUID, formatSlug } from "../../utils/slugUtils";
 
 const Home = () => {
   const { rifaId } = useParams();
@@ -13,28 +14,20 @@ const Home = () => {
   const [soldNumbers, setSoldNumbers] = useState([]);
   const [pendingNumbers, setPendingNumbers] = useState([]);
   const [selectedNumber, setSelectedNumber] = useState(null);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [activeRifa, setActiveRifa] = useState(null);
-
-  // Estado para el formulario de reserva y alertas
-  const [showModal, setShowModal] = useState(false);
   const [buyerName, setBuyerName] = useState("");
-  const [buyerPhone, setBuyerPhone] = useState("");
+  const [buyerPhone, setBuyerPhone] = useState("+569");
+  const [showModal, setShowModal] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
   const [isReserving, setIsReserving] = useState(false);
-  const [alertModal, setAlertModal] = useState({
-    show: false,
-    title: '',
-    message: '',
-    type: 'success'
-  });
-
+  const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'success' });
+  const [activeRifa, setActiveRifa] = useState(null);
   const navigate = useNavigate();
 
   // Configuración de premios por defecto
   const defaultPrizes = [
-    { title: "1er Lugar", desc: "Premio principal de la rifa", img: `${process.env.PUBLIC_URL}/assets/mecedora.png` },
-    { title: "2do Lugar", desc: "Segundo premio del sorteo", img: `${process.env.PUBLIC_URL}/assets/torta.png` },
-    { title: "3er Lugar", desc: "Premio sorpresa", img: `${process.env.PUBLIC_URL}/assets/regalo.png` }
+    { title: "Mecedora", desc: "Mecedora de descanso ergonómica", img: `${process.env.PUBLIC_URL}/assets/mecedora.png` },
+    { title: "Torta", desc: "Exquisita torta para compartir", img: `${process.env.PUBLIC_URL}/assets/torta.png` },
+    { title: "Premio Sorpresa", desc: "Un increíble regalo especial", img: `${process.env.PUBLIC_URL}/assets/regalo.png` }
   ];
 
   const prizes = (activeRifa?.premios && Array.isArray(activeRifa.premios) && activeRifa.premios.length > 0)
@@ -43,15 +36,33 @@ const Home = () => {
 
   const fetchBoletosData = useCallback(async () => {
     try {
-      // 1. Intentar cargar por rifaId específico o la primera rifa activa
+      // 1. Intentar cargar por rifaId específico (UUID o Slug) o la primera rifa activa
       let query = supabase.from('rifas').select('*');
       if (rifaId) {
-        query = query.eq('id', rifaId);
+        if (isUUID(rifaId)) {
+          query = query.eq('id', rifaId);
+        } else {
+          // Búsqueda por slug amigable
+          query = query.eq('slug', formatSlug(rifaId));
+        }
       } else {
         query = query.eq('estado', 'activa').order('created_at', { ascending: false });
       }
 
-      const { data: rifasData } = await query.limit(1);
+      let { data: rifasData } = await query.limit(1);
+
+      // Fallback inteligente: si no se encontró por slug directo, intentar buscar por coincidencia en título
+      if ((!rifasData || rifasData.length === 0) && rifaId && !isUUID(rifaId)) {
+        const cleanedTitleSearch = rifaId.replace(/[-_]/g, ' ').trim();
+        const { data: fallbackByTitle } = await supabase
+          .from('rifas')
+          .select('*')
+          .ilike('titulo', `%${cleanedTitleSearch}%`)
+          .limit(1);
+        if (fallbackByTitle && fallbackByTitle.length > 0) {
+          rifasData = fallbackByTitle;
+        }
+      }
 
       if (rifasData && rifasData.length > 0) {
         const currentRifa = rifasData[0];

@@ -10,7 +10,9 @@ import {
   getOrganizationRifas,
   createRifaWithBoletos,
   getBoletosByRifa,
+  checkSlugAvailable,
 } from '../../services/organizationService';
+import { formatSlug } from "../../utils/slugUtils";
 import { TOTAL_NUMBERS, TOTAL_PAGES } from "../../config";
 
 const Dashboard = () => {
@@ -37,6 +39,8 @@ const Dashboard = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isCreateRifaModalOpen, setIsCreateRifaModalOpen] = useState(false);
   const [newRifaTitle, setNewRifaTitle] = useState('');
+  const [newRifaSlug, setNewRifaSlug] = useState('');
+  const [createSlugStatus, setCreateSlugStatus] = useState({ state: 'idle', message: '' });
   const [newRifaPrice, setNewRifaPrice] = useState('1000');
   const [newRifaTotal, setNewRifaTotal] = useState('100');
   const [creatingRifa, setCreatingRifa] = useState(false);
@@ -100,7 +104,12 @@ const Dashboard = () => {
 
           if (isPending) {
             newPending.push(num);
-            newPendingData.push({ id: num, boletoId: b.id, ...newData[num] });
+            newPendingData.push({
+              boletoId: b.id,
+              ...newData[num],
+              id: num,
+              numero: num,
+            });
           } else if (isSold) {
             newSold.push(num);
           }
@@ -230,67 +239,121 @@ const Dashboard = () => {
   };
 
   // Aprobar reserva
-  const approveReservation = async (numId) => {
+  const approveReservation = async (itemOrNum) => {
     if (!selectedRifa?.id) return;
     try {
-      const { error } = await supabase
-        .from('boletos')
-        .update({ estado: 'pagado' })
-        .eq('rifa_id', selectedRifa.id)
-        .eq('numero', numId);
+      const boletoId = typeof itemOrNum === 'object' ? itemOrNum.boletoId : null;
+      const numero = typeof itemOrNum === 'object' ? itemOrNum.numero : (typeof itemOrNum === 'number' ? itemOrNum : parseInt(itemOrNum, 10));
 
+      let query = supabase.from('boletos').update({ estado: 'pagado' });
+
+      if (boletoId) {
+        query = query.eq('id', boletoId);
+      } else if (!isNaN(numero)) {
+        query = query.eq('rifa_id', selectedRifa.id).eq('numero', numero);
+      } else {
+        query = query.eq('id', itemOrNum);
+      }
+
+      const { error } = await query;
       if (error) throw error;
-      showNotification(`Reserva #${numId} aprobada`, 'success');
+      showNotification(`Reserva #${numero || ''} aprobada con éxito`, 'success');
       await loadRifasAndBoletos();
     } catch (err) {
+      console.error('Error al aprobar reserva:', err);
       showNotification('Error al aprobar reserva', 'error');
     }
   };
 
   // Rechazar reserva
-  const rejectReservation = async (numId) => {
+  const rejectReservation = async (itemOrNum) => {
     if (!selectedRifa?.id) return;
+    const numDisplay = typeof itemOrNum === 'object' ? itemOrNum.numero : itemOrNum;
     setConfirmModal({
       show: true,
       title: 'Rechazar Reserva',
-      message: `¿Estás seguro de que deseas rechazar y liberar el número #${numId}?`,
+      message: `¿Estás seguro de que deseas rechazar y liberar el número #${numDisplay}?`,
       onConfirm: async () => {
         try {
-          const { error } = await supabase
-            .from('boletos')
-            .update({
-              nombre_comprador: null,
-              telefono_comprador: null,
-              vendedor_id: null,
-              estado: 'disponible',
-            })
-            .eq('rifa_id', selectedRifa.id)
-            .eq('numero', numId);
+          const boletoId = typeof itemOrNum === 'object' ? itemOrNum.boletoId : null;
+          const numero = typeof itemOrNum === 'object' ? itemOrNum.numero : (typeof itemOrNum === 'number' ? itemOrNum : parseInt(itemOrNum, 10));
 
+          let query = supabase.from('boletos').update({
+            nombre_comprador: null,
+            telefono_comprador: null,
+            vendedor_id: null,
+            estado: 'disponible',
+          });
+
+          if (boletoId) {
+            query = query.eq('id', boletoId);
+          } else if (!isNaN(numero)) {
+            query = query.eq('rifa_id', selectedRifa.id).eq('numero', numero);
+          } else {
+            query = query.eq('id', itemOrNum);
+          }
+
+          const { error } = await query;
           if (error) throw error;
-          showNotification(`Reserva #${numId} rechazada`, 'info');
+          showNotification(`Reserva #${numDisplay} rechazada y número liberado`, 'info');
           await loadRifasAndBoletos();
         } catch (err) {
+          console.error('Error al rechazar reserva:', err);
           showNotification('Error al rechazar reserva', 'error');
         }
       }
     });
   };
 
+  // Comprobar disponibilidad de slug para nueva rifa
+  useEffect(() => {
+    if (!newRifaSlug.trim() || !isCreateRifaModalOpen) {
+      setCreateSlugStatus({ state: 'idle', message: '' });
+      return;
+    }
+
+    const clean = formatSlug(newRifaSlug);
+    setCreateSlugStatus({ state: 'checking', message: 'Comprobando...' });
+
+    const timer = setTimeout(async () => {
+      try {
+        const available = await checkSlugAvailable(clean);
+        if (available) {
+          setCreateSlugStatus({ state: 'available', message: '¡Disponible!' });
+        } else {
+          setCreateSlugStatus({ state: 'taken', message: 'Ya en uso' });
+        }
+      } catch (err) {
+        setCreateSlugStatus({ state: 'idle', message: '' });
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [newRifaSlug, isCreateRifaModalOpen]);
+
   // Crear Rifa nueva
   const handleCreateRifa = async (e) => {
     e.preventDefault();
     if (!newRifaTitle.trim() || !activeOrg?.id) return;
+
+    if (createSlugStatus.state === 'taken') {
+      showNotification('El alias/enlace de la rifa ya está en uso. Elige uno diferente.', 'error');
+      return;
+    }
+
     setCreatingRifa(true);
     try {
       const created = await createRifaWithBoletos(activeOrg.id, {
         titulo: newRifaTitle.trim(),
+        slug: formatSlug(newRifaSlug) || null,
         total_boletos: parseInt(newRifaTotal, 10) || 100,
         precio: parseFloat(newRifaPrice) || 1000,
       });
       showNotification(`¡Rifa "${created.titulo}" creada con éxito!`, 'success');
       setIsCreateRifaModalOpen(false);
       setNewRifaTitle('');
+      setNewRifaSlug('');
+      setCreateSlugStatus({ state: 'idle', message: '' });
       setSelectedRifa(created);
       await loadRifasAndBoletos();
     } catch (err) {
@@ -506,7 +569,8 @@ const Dashboard = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => {
-                  const url = `${window.location.origin}/#/rifa/${selectedRifa.id}`;
+                  const identifier = selectedRifa.slug || selectedRifa.id;
+                  const url = `${window.location.origin}/#/rifa/${identifier}`;
                   window.open(url, '_blank');
                 }}
                 className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold transition flex items-center gap-1.5"
@@ -517,9 +581,10 @@ const Dashboard = () => {
 
               <button
                 onClick={() => {
-                  const url = `${window.location.origin}/#/rifa/${selectedRifa.id}`;
+                  const identifier = selectedRifa.slug || selectedRifa.id;
+                  const url = `${window.location.origin}/#/rifa/${identifier}`;
                   navigator.clipboard.writeText(url);
-                  showNotification('¡Enlace copiado al portapapeles! Listo para enviar a tus clientes.', 'success');
+                  showNotification('¡Enlace amigable copiado al portapapeles!', 'success');
                 }}
                 className="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 border border-blue-200 dark:border-blue-800 text-xs font-semibold transition flex items-center gap-1.5"
                 title="Copiar enlace directo de la rifa"
@@ -529,7 +594,8 @@ const Dashboard = () => {
 
               <button
                 onClick={() => {
-                  const url = `${window.location.origin}/#/rifa/${selectedRifa.id}`;
+                  const identifier = selectedRifa.slug || selectedRifa.id;
+                  const url = `${window.location.origin}/#/rifa/${identifier}`;
                   const msg = encodeURIComponent(`🎟️ ¡Participa en nuestra rifa "${selectedRifa.titulo}"! Elige y reserva tu número online aquí: ${url}`);
                   window.open(`https://wa.me/?text=${msg}`, '_blank');
                 }}
@@ -638,24 +704,24 @@ const Dashboard = () => {
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {pendingNumbersData.map((item) => (
                       <div
-                        key={item.id}
+                        key={item.boletoId || item.id}
                         className="bg-white dark:bg-gray-800 p-3 rounded-2xl border border-amber-100 dark:border-gray-700 flex justify-between items-center text-xs"
                       >
                         <div>
-                          <span className="font-bold text-amber-600">#{item.id}</span> • {item.nombre}
+                          <span className="font-bold text-amber-600">#{item.numero || item.id}</span> • {item.nombre}
                           <p className="text-[10px] text-gray-500">{item.telefono}</p>
                         </div>
                         <div className="flex gap-1">
                           <button
-                            onClick={() => approveReservation(item.id)}
-                            className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-bold text-xs"
+                            onClick={() => approveReservation(item)}
+                            className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-bold text-xs transition"
                             title="Aprobar"
                           >
                             ✓
                           </button>
                           <button
-                            onClick={() => rejectReservation(item.id)}
-                            className="p-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 font-bold text-xs"
+                            onClick={() => rejectReservation(item)}
+                            className="p-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 font-bold text-xs transition"
                             title="Rechazar"
                           >
                             ✕
@@ -822,15 +888,51 @@ const Dashboard = () => {
 
             <form onSubmit={handleCreateRifa} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Título de la Rifa</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Título de la Rifa *</label>
                 <input
                   type="text"
                   required
                   value={newRifaTitle}
-                  onChange={(e) => setNewRifaTitle(e.target.value)}
+                  onChange={(e) => {
+                    const title = e.target.value;
+                    setNewRifaTitle(title);
+                    if (!newRifaSlug || newRifaSlug === formatSlug(newRifaTitle)) {
+                      setNewRifaSlug(formatSlug(title));
+                    }
+                  }}
                   placeholder="Ej. Rifa Navideña, Rifa Solidaria..."
                   className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-700 border rounded-xl"
                 />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-gray-500">Enlace Amigable (Slug / Alias)</label>
+                  {createSlugStatus.state === 'checking' && (
+                    <span className="text-[10px] text-gray-400">⏳ Comprobando...</span>
+                  )}
+                  {createSlugStatus.state === 'available' && (
+                    <span className="text-[10px] text-emerald-600 font-bold">✓ Disponible</span>
+                  )}
+                  {createSlugStatus.state === 'taken' && (
+                    <span className="text-[10px] text-red-500 font-bold">✕ Ya en uso</span>
+                  )}
+                </div>
+                <div className="flex items-center rounded-xl bg-gray-50 dark:bg-gray-700 border overflow-hidden">
+                  <span className="px-2.5 text-[11px] text-gray-400 font-mono bg-gray-100/80 dark:bg-gray-800/80 border-r py-2 select-none">
+                    /#/rifa/
+                  </span>
+                  <input
+                    type="text"
+                    value={newRifaSlug}
+                    onChange={(e) => setNewRifaSlug(formatSlug(e.target.value))}
+                    placeholder="ej. gran-sorteo"
+                    className="w-full px-2.5 py-2 text-xs bg-transparent outline-none font-mono"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  Tus clientes accederán directamente usando este enlace corto.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
