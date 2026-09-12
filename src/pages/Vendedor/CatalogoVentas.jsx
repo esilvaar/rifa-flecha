@@ -116,7 +116,9 @@ const CatalogoVentas = () => {
       <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-6 py-4 sticky top-0 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🎟️</span>
+            <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-700 flex items-center justify-center p-1 border border-gray-200 dark:border-gray-600 shadow-sm">
+              <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="w-full h-full object-contain" />
+            </div>
             <div>
               <h1 className="text-lg font-bold leading-tight">
                 {activeOrg?.nombre || 'Organización'}

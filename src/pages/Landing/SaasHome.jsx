@@ -30,8 +30,8 @@ const SaasHome = () => {
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/70 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-xl shadow-sm border border-primary/20">
-              🎟️
+            <div className="w-10 h-10 rounded-2xl bg-white dark:bg-gray-800 flex items-center justify-center p-1.5 shadow-sm border border-gray-200 dark:border-gray-700">
+              <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <span className="text-base font-black tracking-tight uppercase leading-tight block">
@@ -379,8 +379,8 @@ const SaasHome = () => {
       <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-base font-bold">
-              🎟️
+            <div className="w-8 h-8 rounded-xl bg-white dark:bg-gray-800 flex items-center justify-center p-1 shadow-sm border border-gray-200 dark:border-gray-700">
+              <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-tight">Sistema de Gestión de Rifas</p>

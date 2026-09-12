@@ -382,7 +382,9 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">⚙️</span>
+              <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-700 flex items-center justify-center p-1 border border-gray-200 dark:border-gray-600 shadow-sm">
+                <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="w-full h-full object-contain" />
+              </div>
               <div>
                 <h1 className="text-base font-bold leading-tight">
                   {activeOrg?.nombre || 'Mi Organización'}

@@ -100,6 +100,40 @@ const Home = () => {
     fetchBoletosData();
   }, [fetchBoletosData]);
 
+  // Actualizar metadatos y título dinámicamente según la rifa activa
+  useEffect(() => {
+    if (activeRifa) {
+      document.title = `${activeRifa.titulo} | Sistema de Gestión de Rifas`;
+
+      const ogTitle = document.querySelector('meta[property="og:title"]');
+      if (ogTitle) ogTitle.setAttribute('content', activeRifa.titulo);
+
+      const twTitle = document.querySelector('meta[name="twitter:title"]');
+      if (twTitle) twTitle.setAttribute('content', activeRifa.titulo);
+
+      const ogDesc = document.querySelector('meta[property="og:description"]');
+      if (ogDesc) ogDesc.setAttribute('content', activeRifa.descripcion || 'Elige y reserva tu número online de forma rápida y segura.');
+
+      const twDesc = document.querySelector('meta[name="twitter:description"]');
+      if (twDesc) twDesc.setAttribute('content', activeRifa.descripcion || 'Elige y reserva tu número online de forma rápida y segura.');
+
+      const imageUrl = activeRifa.imagen_url
+        ? activeRifa.imagen_url.split('#')[0]
+        : `${window.location.origin}/logo.png`;
+
+      const ogImage = document.querySelector('meta[property="og:image"]');
+      if (ogImage) ogImage.setAttribute('content', imageUrl);
+
+      const ogImageSec = document.querySelector('meta[property="og:image:secure_url"]');
+      if (ogImageSec) ogImageSec.setAttribute('content', imageUrl);
+
+      const twImage = document.querySelector('meta[name="twitter:image"]');
+      if (twImage) twImage.setAttribute('content', imageUrl);
+    } else {
+      document.title = 'Sistema de Gestión de Rifas';
+    }
+  }, [activeRifa]);
+
   const handleNumberClick = (number) => {
     setSelectedNumber(selectedNumber === number ? null : number);
   };
@@ -174,8 +208,8 @@ const Home = () => {
       <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-olive-drab/10">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-xl font-bold shadow-sm">
-              🎟️
+            <div className="w-10 h-10 rounded-xl bg-white dark:bg-gray-800 flex items-center justify-center p-1.5 shadow-sm border border-gray-200 dark:border-gray-700">
+              <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <h2 className="text-base font-black tracking-tight uppercase dark:text-white leading-tight">
@@ -448,8 +482,8 @@ const Home = () => {
         <div className="max-w-[1200px] mx-auto px-4 sm:px-10 text-center md:text-left">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center text-xl">
-                🎟️
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center p-1.5 shadow-sm border border-white/20">
+                <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="w-full h-full object-contain" />
               </div>
               <div>
                 <h2 className="text-sm text-primary font-bold tracking-tight uppercase">

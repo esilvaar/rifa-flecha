@@ -102,8 +102,8 @@ const Login = () => {
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 p-8 transition-all">
         {/* Encabezado */}
         <div className="text-center mb-6">
-          <div className="w-14 h-14 mx-auto mb-3 bg-primary/10 text-primary rounded-2xl flex items-center justify-center text-2xl font-bold">
-            🎟️
+          <div className="w-16 h-16 mx-auto mb-3 bg-white dark:bg-gray-700 rounded-2xl flex items-center justify-center p-2 shadow-md border border-gray-100 dark:border-gray-600">
+            <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="w-full h-full object-contain" />
           </div>
           <h2 className="text-2xl font-bold tracking-tight">
             {isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}
