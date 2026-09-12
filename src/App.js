@@ -5,6 +5,7 @@ import { OrganizationProvider } from './contexts/OrganizationContext';
 import { routerConfig } from './router/router-config';
 import RoleGuard from './components/RoleGuard';
 import Login from './pages/Login/Login';
+import SaasHome from './pages/Landing/SaasHome';
 import Home from './pages/Home/Home';
 import Dashboard from './pages/Admin/Dashboard';
 import CatalogoVentas from './pages/Vendedor/CatalogoVentas';
@@ -17,8 +18,10 @@ function App() {
       <OrganizationProvider>
         <HashRouter future={routerConfig.future}>
           <Routes>
-            {/* Página Principal / Catálogo */}
-            <Route path="/" element={<Home />} />
+            {/* Landing Page Principal del SaaS */}
+            <Route path="/" element={<SaasHome />} />
+
+            {/* Página Pública de Compra de Boletos por Rifa */}
             <Route path="/rifa/:rifaId" element={<Home />} />
 
             {/* Autenticación */}
