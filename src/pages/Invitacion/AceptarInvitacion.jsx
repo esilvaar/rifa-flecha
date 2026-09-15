@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrganization } from '../../hooks/useOrganization';
 import { getInvitationByToken, acceptInvitation } from '../../services/invitationService';
+import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 /**
  * Vista para validar y aceptar invitaciones a organizaciones mediante un token en la URL.
@@ -108,8 +109,8 @@ const AceptarInvitacion = () => {
     <div className="min-h-screen flex items-center justify-center p-4 bg-background-light dark:bg-background-dark text-earthy-navy dark:text-white transition-colors duration-300">
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 p-8 text-center animate-fadeIn">
         {/* Ícono de encabezado */}
-        <div className="w-16 h-16 mx-auto mb-5 bg-primary/10 text-primary dark:bg-primary/20 rounded-2xl flex items-center justify-center text-3xl shadow-inner">
-          ✉️
+        <div className="w-16 h-16 mx-auto mb-5 bg-primary/10 text-primary dark:bg-primary/20 rounded-2xl flex items-center justify-center shadow-inner">
+          <Mail className="w-8 h-8" />
         </div>
 
         <h1 className="text-2xl font-bold mb-2">Invitación a Organización</h1>
@@ -136,9 +137,10 @@ const AceptarInvitacion = () => {
             <div className="mt-4 pt-3 border-t border-red-200/60 dark:border-red-800/60 flex justify-center">
               <Link
                 to="/"
-                className="text-xs font-semibold text-primary hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
               >
-                ← Volver al inicio
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Volver al inicio</span>
               </Link>
             </div>
           </div>
@@ -209,7 +211,10 @@ const AceptarInvitacion = () => {
                       <span>Procesando unión...</span>
                     </>
                   ) : (
-                    <span>Aceptar Invitación y Unirse</span>
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Aceptar Invitación y Unirse</span>
+                    </>
                   )}
                 </button>
               </div>

@@ -236,6 +236,39 @@ export const updateBoletoVenta = async (boletoId, saleData) => {
 };
 
 /**
+ * Registra o reserva múltiples boletos a nombre del comprador y asigna el vendedor en una sola operación.
+ *
+ * @param {string} rifaId - UUID de la rifa
+ * @param {Array<number>} numeros - Lista de números de boleto (ej. [5, 12, 18])
+ * @param {Object} saleData - { nombre_comprador, telefono_comprador, vendedor_id, estado }
+ * @returns {Promise<Array>} Boletos actualizados
+ */
+export const updateBoletosBatch = async (rifaId, numeros, saleData) => {
+  if (!rifaId || !numeros || numeros.length === 0) {
+    throw new Error('Se requiere rifaId y al menos un número para actualizar.');
+  }
+
+  const { data, error } = await supabase
+    .from('boletos')
+    .update({
+      nombre_comprador: saleData.nombre_comprador ? saleData.nombre_comprador.trim() : null,
+      telefono_comprador: saleData.telefono_comprador ? saleData.telefono_comprador.trim() : null,
+      vendedor_id: saleData.vendedor_id || null,
+      estado: saleData.estado || 'pagado',
+    })
+    .eq('rifa_id', rifaId)
+    .in('numero', numeros)
+    .select();
+
+  if (error) {
+    console.error('Error al actualizar boletos en lote:', error);
+    throw new Error(error.message || 'Error al actualizar boletos en lote');
+  }
+
+  return data || [];
+};
+
+/**
  * Actualiza la información y personalización de una rifa (título, descripción, imagen, premios, términos).
  *
  * @param {string} rifaId - UUID de la rifa

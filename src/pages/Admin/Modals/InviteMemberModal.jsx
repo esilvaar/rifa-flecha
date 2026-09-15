@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useOrganization } from '../../../hooks/useOrganization';
 import { createInvitation } from '../../../services/invitationService';
+import { UserPlus, X, Link2, Copy, Check } from 'lucide-react';
 
 /**
  * Modal para que administradores generen y compartan enlaces de invitación para su organización.
@@ -66,28 +67,37 @@ const InviteMemberModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden transition-all duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+      <div className="relative w-full sm:max-w-lg bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-gray-100 dark:border-gray-700 overflow-hidden transition-all duration-200 max-h-[90vh] overflow-y-auto">
+        {/* Barra móvil */}
+        <div className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto my-2.5 sm:hidden" />
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-700">
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-              Invitar Miembro
-            </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Organización: <span className="font-semibold text-primary">{activeOrg?.nombre || 'Activa'}</span>
-            </p>
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+              <UserPlus className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                Invitar Miembro
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Organización: <span className="font-semibold text-primary">{activeOrg?.nombre || 'Activa'}</span>
+              </p>
+            </div>
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            aria-label="Cerrar modal"
           >
-            ✕
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-5 sm:p-6 space-y-5">
           {error && (
             <div className="p-3.5 text-xs text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-300 rounded-xl border border-red-200 dark:border-red-800">
               {error}
@@ -123,7 +133,8 @@ const InviteMemberModal = ({ isOpen, onClose }) => {
                 </>
               ) : (
                 <>
-                  <span>🔗 Generar Enlace de Invitación</span>
+                  <Link2 className="w-4 h-4" />
+                  <span>Generar Enlace de Invitación</span>
                 </>
               )}
             </button>
@@ -131,27 +142,37 @@ const InviteMemberModal = ({ isOpen, onClose }) => {
 
           {/* Enlace generado */}
           {inviteLink && (
-            <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2 animate-fadeIn">
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2.5 animate-fadeIn">
               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                 Enlace generado (Vigente por 7 días)
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   readOnly
                   value={inviteLink}
-                  className="flex-1 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-600 dark:text-gray-300 select-all focus:outline-none"
+                  className="flex-1 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-600 dark:text-gray-300 select-all focus:outline-none truncate font-mono"
                 />
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className={`px-4 py-2.5 rounded-xl font-medium text-xs transition flex items-center gap-1.5 shadow-sm ${
+                  className={`px-4 py-2.5 rounded-xl font-medium text-xs transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95 ${
                     copied
                       ? 'bg-emerald-600 text-white'
                       : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white'
                   }`}
                 >
-                  {copied ? '✓ ¡Copiado!' : '📋 Copiar'}
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>¡Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copiar</span>
+                    </>
+                  )}
                 </button>
               </div>
               <p className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -162,11 +183,11 @@ const InviteMemberModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+        <div className="px-5 sm:px-6 py-4 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-700 flex justify-end">
           <button
             type="button"
             onClick={handleClose}
-            className="px-5 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition"
+            className="w-full sm:w-auto px-5 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition rounded-xl"
           >
             Cerrar
           </button>

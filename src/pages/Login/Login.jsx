@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { ArrowLeft } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -111,7 +112,7 @@ const Login = () => {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {isRegister
               ? 'Regístrate con tu correo para acceder al sistema'
-              : 'Ingresa tus credenciales de Supabase para continuar'}
+              : 'Ingresa tus credenciales para continuar'}
           </p>
         </div>
 
@@ -124,11 +125,10 @@ const Login = () => {
               setError(null);
               setInfoMessage(null);
             }}
-            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition ${
-              !isRegister
-                ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
+            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition ${!isRegister
+              ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
           >
             Iniciar Sesión
           </button>
@@ -139,11 +139,10 @@ const Login = () => {
               setError(null);
               setInfoMessage(null);
             }}
-            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition ${
-              isRegister
-                ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
+            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition ${isRegister
+              ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
           >
             Registrarse
           </button>
@@ -227,38 +226,14 @@ const Login = () => {
           </button>
         </form>
 
-        {/* Divisor */}
-        <div className="relative my-6 text-center">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200 dark:border-gray-700" />
-          </div>
-          <span className="relative bg-white dark:bg-gray-800 px-3 text-xs text-gray-400">
-            o también
-          </span>
-        </div>
-
-        {/* Botón Google OAuth */}
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="w-full py-3 px-4 rounded-2xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium text-xs transition flex items-center justify-center gap-3 shadow-sm"
-        >
-          <img
-            src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-            alt="Google"
-            className="w-4 h-4"
-          />
-          <span>Continuar con Google</span>
-        </button>
-
         {/* Enlace Volver */}
         <div className="mt-6 text-center">
           <Link
             to="/"
-            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition"
+            className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition"
           >
-            ← Volver a la página principal
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Volver a la página principal</span>
           </Link>
         </div>
       </div>

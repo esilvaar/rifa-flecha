@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrganization } from '../hooks/useOrganization';
 import { createOrganization } from '../services/organizationService';
+import { Building2, PlusCircle, LogOut } from 'lucide-react';
 
 /**
  * Componente Onboarding que permite al usuario crear su primera organización
@@ -37,14 +38,14 @@ const CreateOrgModal = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background-light dark:bg-background-dark text-earthy-navy dark:text-white transition-colors duration-300">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-8 border border-gray-100 dark:border-gray-700 animate-fadeIn">
+      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 border border-gray-100 dark:border-gray-700 animate-fadeIn">
         {/* Encabezado */}
         <div className="text-center mb-6">
-          <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 text-primary rounded-2xl flex items-center justify-center text-3xl shadow-inner">
-            🏢
+          <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 text-primary rounded-2xl flex items-center justify-center shadow-inner">
+            <Building2 className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold">Crea tu Organización</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+          <h2 className="text-xl sm:text-2xl font-bold">Crea tu Organización</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
             Para comenzar a gestionar rifas y administrar vendedores, define el nombre de tu organización.
           </p>
         </div>
@@ -82,7 +83,10 @@ const CreateOrgModal = () => {
                 <span>Creando Organización...</span>
               </>
             ) : (
-              <span>✨ Crear Organización y Empezar</span>
+              <>
+                <PlusCircle className="w-4 h-4" />
+                <span>Crear Organización y Empezar</span>
+              </>
             )}
           </button>
         </form>
@@ -96,9 +100,10 @@ const CreateOrgModal = () => {
           <button
             type="button"
             onClick={() => logout()}
-            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-medium transition underline"
+            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-medium transition underline"
           >
-            Cerrar Sesión
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Cerrar Sesión</span>
           </button>
         </div>
       </div>

@@ -6,6 +6,22 @@ import { useOrganization } from '../../hooks/useOrganization';
 import RifaGrid from "../../components/Rifa/RifaGrid";
 import { TOTAL_NUMBERS, TOTAL_PAGES } from "../../config";
 import { isUUID, formatSlug } from "../../utils/slugUtils";
+import {
+  Ticket,
+  Settings,
+  Calendar,
+  Gift,
+  ShoppingCart,
+  Check,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  User,
+  Phone,
+} from 'lucide-react';
 
 const Home = () => {
   const { rifaId } = useParams();
@@ -13,7 +29,7 @@ const Home = () => {
   const { role, activeOrg } = useOrganization();
   const [soldNumbers, setSoldNumbers] = useState([]);
   const [pendingNumbers, setPendingNumbers] = useState([]);
-  const [selectedNumber, setSelectedNumber] = useState(null);
+  const [selectedNumbers, setSelectedNumbers] = useState([]);
   const [buyerName, setBuyerName] = useState("");
   const [buyerPhone, setBuyerPhone] = useState("+569");
   const [showModal, setShowModal] = useState(false);
@@ -146,65 +162,59 @@ const Home = () => {
   }, [activeRifa]);
 
   const handleNumberClick = (number) => {
-    setSelectedNumber(selectedNumber === number ? null : number);
+    if (soldNumbers.includes(number) || pendingNumbers.includes(number)) return;
+    setSelectedNumbers((prev) =>
+      prev.includes(number) ? prev.filter((n) => n !== number) : [...prev, number]
+    );
   };
 
   const handleReserve = async (e) => {
     e.preventDefault();
-    if (!selectedNumber || !buyerName.trim() || !buyerPhone.trim()) return;
+    if (selectedNumbers.length === 0 || !buyerName.trim() || !buyerPhone.trim()) return;
 
     setIsReserving(true);
     try {
       if (activeRifa?.id) {
-        // Intentar RPC atómico para reservar
-        const { error: rpcErr } = await supabase.rpc('reserve_boleto', {
-          p_rifa_id: activeRifa.id,
-          p_numero: selectedNumber,
-          p_nombre: buyerName.trim(),
-          p_telefono: buyerPhone.trim(),
-        });
+        const { error: updateErr } = await supabase
+          .from('boletos')
+          .update({
+            nombre_comprador: buyerName.trim(),
+            telefono_comprador: buyerPhone.trim(),
+            estado: 'reservado',
+          })
+          .eq('rifa_id', activeRifa.id)
+          .in('numero', selectedNumbers);
 
-        if (rpcErr) {
-          // Fallback a actualización directa si el RPC aún no fue aplicado
-          const { error: updateErr } = await supabase
-            .from('boletos')
-            .update({
-              nombre_comprador: buyerName.trim(),
-              telefono_comprador: buyerPhone.trim(),
-              estado: 'reservado',
-            })
-            .eq('rifa_id', activeRifa.id)
-            .eq('numero', selectedNumber);
-
-          if (updateErr) throw updateErr;
-        }
+        if (updateErr) throw updateErr;
       } else {
-        const { error } = await supabase.from('vendidos').insert({
-          id: selectedNumber,
-          nombre: buyerName,
-          telefono: buyerPhone,
+        const inserts = selectedNumbers.map((num) => ({
+          id: num,
+          nombre: buyerName.trim(),
+          telefono: buyerPhone.trim(),
           status: 'pending',
-        });
+        }));
+        const { error } = await supabase.from('vendidos').insert(inserts);
         if (error) throw error;
       }
 
+      const reservedList = selectedNumbers.map((n) => `#${n}`).join(', ');
       setShowModal(false);
       setAlertModal({
         show: true,
         title: '¡Reserva Realizada!',
-        message: `¡El número ${selectedNumber} ha sido reservado correctamente! Espera la confirmación del organizador.`,
+        message: `¡${selectedNumbers.length === 1 ? 'El número' : 'Los números'} ${reservedList} ${selectedNumbers.length === 1 ? 'ha sido reservado' : 'han sido reservados'} correctamente! Espera la confirmación del organizador.`,
         type: 'success',
       });
-      setSelectedNumber(null);
+      setSelectedNumbers([]);
       setBuyerName("");
-      setBuyerPhone("");
+      setBuyerPhone("+569");
       await fetchBoletosData();
     } catch (error) {
       console.error("Error reservando:", error);
       setAlertModal({
         show: true,
         title: 'Número no Disponible',
-        message: error.message || 'Lo sentimos, este número ya fue reservado o comprado por otra persona.',
+        message: error.message || 'Lo sentimos, uno o más de los números seleccionados ya fueron reservados o comprados por otra persona.',
         type: 'error',
       });
     } finally {
@@ -239,9 +249,19 @@ const Home = () => {
             {user ? (
               <button
                 onClick={() => navigate(role === 'admin' ? '/admin' : '/vendedor')}
-                className="bg-primary text-white px-5 py-2 rounded-xl font-bold text-xs hover:opacity-90 transition shadow-md shadow-primary/20 flex items-center gap-2"
+                className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs hover:opacity-90 transition shadow-md shadow-primary/20 flex items-center gap-1.5 active:scale-95"
               >
-                <span>{role === 'admin' ? '⚙️ Panel Admin' : '🎟️ Portal Vendedor'}</span>
+                {role === 'admin' ? (
+                  <>
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>Panel Admin</span>
+                  </>
+                ) : (
+                  <>
+                    <Ticket className="w-3.5 h-3.5" />
+                    <span>Portal Vendedor</span>
+                  </>
+                )}
               </button>
             ) : (
               <button
@@ -258,31 +278,32 @@ const Home = () => {
       <main className="max-w-[1200px] mx-auto px-4 sm:px-10">
 
         {/* --- HERO SECTION (Principal) --- */}
-        <section className="py-12">
-          <div className="flex flex-col md:flex-row items-center gap-10">
-            <div className="flex flex-col gap-6 flex-1">
-              <div className="flex flex-col gap-4">
-                <h1 className="text-4xl md:text-6xl font-black leading-tight tracking-tighter uppercase dark:text-white">
+        <section className="py-8 sm:py-12">
+          <div className="flex flex-col md:flex-row items-center gap-8 md:gap-10">
+            <div className="flex flex-col gap-5 sm:gap-6 flex-1">
+              <div className="flex flex-col gap-3 sm:gap-4">
+                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black leading-tight tracking-tighter uppercase dark:text-white">
                   {activeRifa ? (
                     <span>{activeRifa.titulo}</span>
                   ) : (
                     <>Gran Rifa <br /><span className="text-primary">A Beneficio</span></>
                   )}
                 </h1>
-                <p className="text-lg opacity-90 leading-relaxed dark:text-gray-300">
+                <p className="text-base sm:text-lg opacity-90 leading-relaxed dark:text-gray-300">
                   {activeRifa?.descripcion || "Participa para ganar increíbles premios. Apoya reservando tu número online de forma rápida y segura."}
                 </p>
                 {activeRifa && (
-                  <div className="flex items-center gap-3 text-sm font-semibold flex-wrap">
-                    <span className="px-3 py-1 bg-primary/10 text-primary rounded-xl">
+                  <div className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold flex-wrap">
+                    <span className="px-3 py-1.5 bg-primary/10 text-primary rounded-xl font-bold">
                       Valor: ${parseFloat(activeRifa.precio).toLocaleString()} por boleto
                     </span>
                     <span className="text-gray-500">
                       Total: {activeRifa.total_boletos} números
                     </span>
                     {activeRifa.fecha_sorteo && (
-                      <span className="px-3 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl">
-                        📅 Sorteo: {new Date(activeRifa.fecha_sorteo).toLocaleDateString()}
+                      <span className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Sorteo: {new Date(activeRifa.fecha_sorteo).toLocaleDateString()}</span>
                       </span>
                     )}
                   </div>
@@ -313,15 +334,15 @@ const Home = () => {
         </section>
 
         {/* --- SECCIÓN DE PREMIOS (Recuperada) --- */}
-        <section className="py-16 border-t border-olive-drab/10" id="premios">
-          <div className="flex items-center justify-between mb-10 px-4">
-            <h2 className="text-3xl font-black uppercase tracking-tight dark:text-white">Nuestros Premios</h2>
-            <span className="material-symbols-outlined text-primary text-3xl">redeem</span>
+        <section className="py-12 sm:py-16 border-t border-olive-drab/10" id="premios">
+          <div className="flex items-center justify-between mb-8 sm:mb-10 px-2 sm:px-4">
+            <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight dark:text-white">Nuestros Premios</h2>
+            <Gift className="w-7 h-7 text-primary" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-2 sm:px-4">
             {prizes.map((prize, idx) => (
               <div key={idx} className="group cursor-pointer">
-                <div className="aspect-square bg-white dark:bg-gray-800 rounded-xl mb-4 p-4 flex items-center justify-center border border-olive-drab/10 transition-all duration-500 group-hover:border-primary/50">
+                <div className="aspect-square bg-white dark:bg-gray-800 rounded-2xl mb-4 p-4 flex items-center justify-center border border-olive-drab/10 transition-all duration-500 group-hover:border-primary/50 shadow-sm">
                   <img
                     src={prize.img}
                     alt={prize.title}
@@ -337,22 +358,22 @@ const Home = () => {
         </section>
 
         {/* --- SECCIÓN DE COMPRA --- */}
-        <section className="py-16 border-t border-olive-drab/10" id="comprar">
-          <div className="flex flex-col lg:flex-row gap-12">
+        <section className="py-12 sm:py-16 border-t border-olive-drab/10" id="comprar">
+          <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
 
             {/* Lado Izquierdo: Grilla */}
-            <div className="flex-1">
-              <div className="mb-8">
-                <h2 className="text-3xl font-black uppercase mb-2 dark:text-white">Elige tu número</h2>
-                <p className="opacity-70 dark:text-gray-400">Haz clic en los números disponibles. <span className="font-bold text-primary">Valor: ${activeRifa ? parseFloat(activeRifa.precio).toLocaleString() : '1.000'}</span></p>
+            <div className="flex-1 min-w-0">
+              <div className="mb-6 sm:mb-8">
+                <h2 className="text-2xl sm:text-3xl font-black uppercase mb-2 dark:text-white">Elige tu número</h2>
+                <p className="opacity-70 dark:text-gray-400 text-xs sm:text-sm">Haz clic en los números disponibles. <span className="font-bold text-primary">Valor: ${activeRifa ? parseFloat(activeRifa.precio).toLocaleString() : '1.000'}</span></p>
               </div>
 
               {/* Leyenda */}
-              <div className="flex gap-6 mb-8 text-xs font-bold uppercase tracking-wider dark:text-gray-300 flex-wrap">
-                <div className="flex items-center gap-2"><div className="size-4 rounded border border-olive-drab/30"></div> <span>Libre</span></div>
-                <div className="flex items-center gap-2"><div className="size-4 rounded bg-primary"></div> <span>Tu Selección</span></div>
-                <div className="flex items-center gap-2"><div className="size-4 rounded bg-yellow-400"></div> <span>Reservado</span></div>
-                <div className="flex items-center gap-2"><div className="size-4 rounded bg-red-300 dark:bg-red-700"></div> <span>Vendido</span></div>
+              <div className="flex gap-4 sm:gap-6 mb-6 sm:mb-8 text-xs font-bold uppercase tracking-wider dark:text-gray-300 flex-wrap">
+                <div className="flex items-center gap-2"><div className="w-3.5 h-3.5 rounded border border-gray-300 dark:border-gray-600 bg-gray-50"></div> <span>Libre</span></div>
+                <div className="flex items-center gap-2"><div className="w-3.5 h-3.5 rounded bg-primary/20 border-2 border-primary border-dashed"></div> <span>Selección</span></div>
+                <div className="flex items-center gap-2"><div className="w-3.5 h-3.5 rounded bg-amber-400"></div> <span>Reservado</span></div>
+                <div className="flex items-center gap-2"><div className="w-3.5 h-3.5 rounded bg-red-500"></div> <span>Vendido</span></div>
               </div>
 
               {/* Grilla dinámica */}
@@ -365,22 +386,22 @@ const Home = () => {
                     <RifaGrid
                       soldNumbers={soldNumbers}
                       pendingNumbers={pendingNumbers}
-                      currentNumber={selectedNumber}
+                      selectedNumbers={selectedNumbers}
                       onNumberClick={handleNumberClick}
                       pageIndex={pageIndex}
                       totalNumbers={totalHomeNumbers}
                     />
 
                     {/* Paginación */}
-                    <div className="flex items-center justify-between mt-6 bg-white dark:bg-earthy-navy/30 p-4 rounded-xl border border-olive-drab/10">
-                      <button onClick={() => setPageIndex((p) => Math.max(0, p - 1))} disabled={pageIndex === 0} className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 dark:text-white">
-                        <span className="material-symbols-outlined">arrow_back</span> Anterior
+                    <div className="flex items-center justify-between mt-6 bg-white dark:bg-earthy-navy/30 p-3.5 sm:p-4 rounded-2xl border border-olive-drab/10 flex-wrap gap-2">
+                      <button onClick={() => setPageIndex((p) => Math.max(0, p - 1))} disabled={pageIndex === 0} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-primary/10 disabled:opacity-30 dark:text-white text-xs font-semibold">
+                        <ChevronLeft className="w-4 h-4" /> <span>Anterior</span>
                       </button>
-                      <span className="text-sm font-bold dark:text-gray-300">
+                      <span className="text-xs font-bold dark:text-gray-300">
                         Página {pageIndex + 1} de {totalHomePages} ({totalHomeNumbers} números)
                       </span>
-                      <button onClick={() => setPageIndex((p) => Math.min(totalHomePages - 1, p + 1))} disabled={pageIndex >= totalHomePages - 1} className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 dark:text-white">
-                        Siguiente <span className="material-symbols-outlined">arrow_forward</span>
+                      <button onClick={() => setPageIndex((p) => Math.min(totalHomePages - 1, p + 1))} disabled={pageIndex >= totalHomePages - 1} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-primary/10 disabled:opacity-30 dark:text-white text-xs font-semibold">
+                        <span>Siguiente</span> <ChevronRight className="w-4 h-4" />
                       </button>
                     </div>
                   </>
@@ -390,39 +411,71 @@ const Home = () => {
 
             {/* Lado Derecho: Resumen */}
             <aside className="w-full lg:w-[350px]">
-              <div className="sticky top-24 bg-white dark:bg-earthy-navy/40 p-8 rounded-2xl border border-olive-drab/20 shadow-xl backdrop-blur-sm">
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-2 dark:text-white">
-                  <span className="material-symbols-outlined text-primary">shopping_cart</span>
-                  Resumen
-                </h3>
+              <div className="lg:sticky lg:top-24 bg-white dark:bg-earthy-navy/40 p-6 sm:p-8 rounded-3xl border border-olive-drab/20 shadow-xl backdrop-blur-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2 dark:text-white">
+                    <ShoppingCart className="w-5 h-5 text-primary" />
+                    <span>Resumen</span>
+                  </h3>
+                  {selectedNumbers.length > 0 && (
+                    <button
+                      onClick={() => setSelectedNumbers([])}
+                      className="text-xs text-gray-400 hover:text-red-500 font-semibold transition"
+                    >
+                      Limpiar
+                    </button>
+                  )}
+                </div>
 
-                <div className="flex flex-col gap-4 mb-8">
-                  <div className="flex justify-between items-center text-sm dark:text-gray-300">
-                    <span className="opacity-70">Número elegido:</span>
-                    {selectedNumber !== null ? (
-                      <span className="bg-primary/20 text-primary px-3 py-1 rounded-md text-sm font-black">#{selectedNumber}</span>
+                <div className="flex flex-col gap-4 mb-6">
+                  <div className="flex flex-col gap-2 text-sm dark:text-gray-300">
+                    <div className="flex justify-between items-center">
+                      <span className="opacity-70 text-xs">Boletos elegidos:</span>
+                      <span className="font-bold text-primary text-xs">
+                        {selectedNumbers.length} {selectedNumbers.length === 1 ? 'boleto' : 'boletos'}
+                      </span>
+                    </div>
+
+                    {selectedNumbers.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1 py-1 custom-scrollbar">
+                        {selectedNumbers.map((num) => (
+                          <span
+                            key={num}
+                            onClick={() => handleNumberClick(num)}
+                            className="bg-primary/15 text-primary px-2.5 py-1 rounded-lg text-xs font-black border border-primary/20 flex items-center gap-1.5 cursor-pointer hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition"
+                            title="Haz clic para quitar este número"
+                          >
+                            #{num} <X className="w-3 h-3 opacity-60" />
+                          </span>
+                        ))}
+                      </div>
                     ) : (
-                      <span className="text-gray-400 italic">Ninguno</span>
+                      <span className="text-gray-400 italic text-xs">Ninguno seleccionado</span>
                     )}
                   </div>
+
                   <div className="flex justify-between items-center pt-4 border-t border-olive-drab/10">
-                    <span className="text-lg font-bold dark:text-white">Total</span>
-                    <span className="text-2xl font-black text-primary">
-                      {selectedNumber !== null ? (activeRifa ? `$${parseFloat(activeRifa.precio).toLocaleString()}` : "$1.000") : "$0"}
+                    <span className="text-base sm:text-lg font-bold dark:text-white">Total</span>
+                    <span className="text-xl sm:text-2xl font-black text-primary">
+                      ${(selectedNumbers.length * (parseFloat(activeRifa?.precio) || 1000)).toLocaleString()}
                     </span>
                   </div>
                 </div>
 
                 <button
-                  disabled={selectedNumber === null}
+                  disabled={selectedNumbers.length === 0}
                   onClick={() => {
                     setBuyerPhone("+569");
                     setShowModal(true);
                   }}
-                  className="w-full bg-primary text-earthy-navy py-4 rounded-xl font-black uppercase tracking-wider hover:scale-[1.02] transition-transform flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-primary text-earthy-navy py-3.5 rounded-xl font-black uppercase tracking-wider hover:opacity-95 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25 active:scale-[0.99] text-xs sm:text-sm"
                 >
-                  Reservar Ahora
-                  <span className="material-symbols-outlined">edit_calendar</span>
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {selectedNumbers.length > 1
+                      ? `Reservar ${selectedNumbers.length} Boletos`
+                      : 'Reservar Ahora'}
+                  </span>
                 </button>
               </div>
             </aside>
@@ -432,9 +485,10 @@ const Home = () => {
         {/* --- TÉRMINOS Y CONDICIONES (si están configurados) --- */}
         {activeRifa?.terminos && (
           <section className="py-12 border-t border-olive-drab/10" id="terminos">
-            <div className="bg-white dark:bg-gray-800/60 p-8 rounded-3xl border border-olive-drab/10 space-y-3">
-              <h3 className="text-lg font-bold flex items-center gap-2 dark:text-white">
-                <span className="text-primary">📋</span> Términos y Condiciones del Sorteo
+            <div className="bg-white dark:bg-gray-800/60 p-6 sm:p-8 rounded-3xl border border-olive-drab/10 space-y-3">
+              <h3 className="text-lg font-bold flex items-center gap-2.5 dark:text-white">
+                <FileText className="w-5 h-5 text-primary" />
+                <span>Términos y Condiciones del Sorteo</span>
               </h3>
               <p className="text-sm opacity-80 leading-relaxed whitespace-pre-line dark:text-gray-300">
                 {activeRifa.terminos}
@@ -442,26 +496,100 @@ const Home = () => {
             </div>
           </section>
         )}
+
+        {/* Barra Flotante para Móviles */}
+        {selectedNumbers.length > 0 && !showModal && (
+          <div className="lg:hidden fixed bottom-4 left-4 right-4 z-40 bg-gray-900/95 text-white dark:bg-white/95 dark:text-gray-900 p-3.5 sm:p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-gray-700 dark:border-gray-200 backdrop-blur-md animate-fadeIn">
+            <div className="min-w-0 pr-2">
+              <p className="text-xs font-bold text-primary truncate">
+                {selectedNumbers.length} {selectedNumbers.length === 1 ? 'boleto' : 'boletos'} seleccionados
+              </p>
+              <p className="text-base font-black truncate">
+                ${(selectedNumbers.length * (parseFloat(activeRifa?.precio) || 1000)).toLocaleString()}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setSelectedNumbers([])}
+                className="p-2 text-xs font-medium text-white/60 dark:text-gray-500 hover:text-white dark:hover:text-gray-900"
+                title="Limpiar selección"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setBuyerPhone("+569");
+                  setShowModal(true);
+                }}
+                className="px-4 py-2 rounded-xl bg-primary text-earthy-navy font-bold text-xs shadow-md flex items-center gap-1.5 active:scale-95"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Reservar</span>
+              </button>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* --- MODAL DE RESERVA --- */}
       {showModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-earthy-navy w-full max-w-md rounded-2xl shadow-2xl border border-olive-drab/20 p-6">
-            <h3 className="text-xl font-bold mb-4 dark:text-white">Confirmar Reserva #{selectedNumber}</h3>
-            <form onSubmit={handleReserve} className="flex flex-col gap-4">
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white dark:bg-gray-800 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border border-gray-100 dark:border-gray-700 p-5 sm:p-6 max-h-[90vh] overflow-y-auto">
+            {/* Barra móvil */}
+            <div className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-3 sm:hidden" />
+
+            <div className="flex justify-between items-start mb-4">
               <div>
-                <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">Tu Nombre</label>
-                <input required type="text" className="w-full rounded-lg bg-gray-100 dark:bg-black/20 border-none p-3 dark:text-white" value={buyerName} onChange={e => setBuyerName(e.target.value)} placeholder="Ej. Juan Pérez" />
+                <h3 className="text-base sm:text-lg font-bold dark:text-white">
+                  {selectedNumbers.length === 1
+                    ? `Confirmar Reserva #${selectedNumbers[0]}`
+                    : `Confirmar Reserva de ${selectedNumbers.length} Boletos`}
+                </h3>
+                <p className="text-xs text-primary font-bold mt-0.5">
+                  Total: ${(selectedNumbers.length * (parseFloat(activeRifa?.precio) || 1000)).toLocaleString()}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-full"
+                aria-label="Cerrar modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-4 p-3 bg-gray-50 dark:bg-black/20 rounded-xl border border-olive-drab/10">
+              <p className="text-[11px] font-semibold text-gray-500 mb-1.5">Boletos elegidos:</p>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1 custom-scrollbar">
+                {selectedNumbers.map((num) => (
+                  <span
+                    key={num}
+                    className="px-2 py-0.5 rounded-md font-bold text-xs bg-primary/20 text-primary border border-primary/30"
+                  >
+                    #{num}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleReserve} className="flex flex-col gap-3.5">
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1">
+                  <User className="w-3.5 h-3.5 text-gray-400" /> Tu Nombre *
+                </label>
+                <input required type="text" className="w-full rounded-xl bg-gray-100 dark:bg-black/20 border-none p-3 dark:text-white text-sm outline-none focus:ring-2 focus:ring-primary/30" value={buyerName} onChange={e => setBuyerName(e.target.value)} placeholder="Ej. Juan Pérez" autoFocus />
               </div>
               <div>
-                <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">Teléfono / WhatsApp</label>
-                <input required type="tel" className="w-full rounded-lg bg-gray-100 dark:bg-black/20 border-none p-3 dark:text-white" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)} placeholder="+56 9..." />
+                <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-gray-400" /> Teléfono / WhatsApp *
+                </label>
+                <input required type="tel" className="w-full rounded-xl bg-gray-100 dark:bg-black/20 border-none p-3 dark:text-white text-sm outline-none focus:ring-2 focus:ring-primary/30 font-mono" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)} placeholder="+56 9..." />
               </div>
-              <div className="flex gap-3 mt-4">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 rounded-xl font-bold border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5">Cancelar</button>
-                <button type="submit" disabled={isReserving} className="flex-1 py-3 rounded-xl font-bold bg-primary text-earthy-navy hover:opacity-90">
-                  {isReserving ? 'Guardando...' : 'Confirmar'}
+              <div className="flex gap-2.5 mt-2">
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 rounded-xl font-bold border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 text-xs">Cancelar</button>
+                <button type="submit" disabled={isReserving} className="flex-1 py-3 rounded-xl font-bold bg-primary text-earthy-navy hover:opacity-90 text-xs disabled:opacity-50 flex items-center justify-center gap-1.5 active:scale-95">
+                  <Check className="w-4 h-4" />
+                  <span>{isReserving ? 'Guardando...' : `Confirmar (${selectedNumbers.length})`}</span>
                 </button>
               </div>
             </form>
@@ -472,15 +600,19 @@ const Home = () => {
       {/* --- MODAL DE ALERTA PERSONALIZADO --- */}
       {alertModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-earthy-navy w-full max-w-md rounded-2xl shadow-2xl border border-olive-drab/20 p-6 text-center">
-            <span className="text-4xl mb-4 block">
-              {alertModal.type === 'success' ? '✅' : '❌'}
-            </span>
-            <h3 className="text-xl font-bold mb-2 dark:text-white">{alertModal.title}</h3>
-            <p className="text-sm opacity-80 mb-6 dark:text-gray-300">{alertModal.message}</p>
+          <div className="bg-white dark:bg-earthy-navy w-full max-w-md rounded-2xl shadow-2xl border border-olive-drab/20 p-6 text-center space-y-3">
+            <div className="mb-2">
+              {alertModal.type === 'success' ? (
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+              ) : (
+                <XCircle className="w-12 h-12 text-red-500 mx-auto" />
+              )}
+            </div>
+            <h3 className="text-xl font-bold dark:text-white">{alertModal.title}</h3>
+            <p className="text-sm opacity-80 dark:text-gray-300">{alertModal.message}</p>
             <button
               onClick={() => setAlertModal({ ...alertModal, show: false })}
-              className="w-full py-3 rounded-xl font-bold bg-primary text-earthy-navy hover:opacity-90"
+              className="w-full py-3 rounded-xl font-bold bg-primary text-earthy-navy hover:opacity-90 active:scale-95 transition mt-2"
             >
               Entendido
             </button>

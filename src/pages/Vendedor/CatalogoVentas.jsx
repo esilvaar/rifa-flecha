@@ -1,22 +1,42 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrganization } from '../../hooks/useOrganization';
-import { getOrganizationRifas, getBoletosByRifa, updateBoletoVenta } from '../../services/organizationService';
+import { useNavigate } from 'react-router-dom';
+import { getOrganizationRifas, getBoletosByRifa, updateBoletoVenta, updateBoletosBatch } from '../../services/organizationService';
+import RifaGrid from '../../components/Rifa/RifaGrid';
+import PendingReservations from '../../components/Rifa/PendingReservations';
+import TicketModal from '../../components/Rifa/TicketModal';
+import {
+  Ticket,
+  DollarSign,
+  Award,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  X,
+  LogOut,
+  ArrowLeft,
+  Store,
+} from 'lucide-react';
 
 const CatalogoVentas = () => {
   const { user, logout } = useAuth();
   const { activeOrg, role } = useOrganization();
+  const navigate = useNavigate();
 
   const [rifas, setRifas] = useState([]);
   const [selectedRifa, setSelectedRifa] = useState(null);
   const [boletos, setBoletos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBoleto, setSelectedBoleto] = useState(null);
+  const [selectedNumbers, setSelectedNumbers] = useState([]);
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [buyerName, setBuyerName] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
   const [saleStatus, setSaleStatus] = useState('pagado');
   const [savingSale, setSavingSale] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [pageIndex, setPageIndex] = useState(0);
 
   /**
    * Cargar rifas de la organización activa
@@ -29,6 +49,7 @@ const CatalogoVentas = () => {
       setRifas(data);
       if (data.length > 0) {
         setSelectedRifa(data[0]);
+        setPageIndex(0);
       }
     } catch (err) {
       console.error('Error cargando rifas:', err);
@@ -41,14 +62,14 @@ const CatalogoVentas = () => {
    * Cargar boletos de la rifa seleccionada
    */
   const loadBoletos = useCallback(async () => {
-    if (!selectedRifa?.id) return;
+    if (!selectedRifa) return;
     try {
       const data = await getBoletosByRifa(selectedRifa.id);
-      setBoletos(data);
+      setBoletos(data.sort((a, b) => a.numero - b.numero));
     } catch (err) {
       console.error('Error cargando boletos:', err);
     }
-  }, [selectedRifa?.id]);
+  }, [selectedRifa]);
 
   useEffect(() => {
     loadRifas();
@@ -58,42 +79,89 @@ const CatalogoVentas = () => {
     loadBoletos();
   }, [loadBoletos]);
 
-  const handleOpenSaleModal = (boleto) => {
-    // Si el boleto ya está vendido por otro vendedor, no permitir editarlo
-    if (boleto.estado !== 'disponible' && boleto.vendedor_id !== user?.id && role !== 'admin') {
+  // Selección de número en la grilla (soporta múltiple para disponibles y unitario para ocupados)
+  const handleNumberClick = (number) => {
+    const boleto = boletos.find((b) => b.numero === number);
+    if (!boleto) return;
+
+    const isMine = boleto.vendedor_id === user?.id;
+    const isOrphanPending = boleto.estado === 'reservado' && !boleto.vendedor_id;
+    const isAvailable = boleto.estado === 'disponible';
+
+    // Si es un boleto vendido por mí o una reserva que puedo gestionar, abrir individualmente
+    if (!isAvailable) {
+      if (isMine || role === 'admin' || isOrphanPending) {
+        setSelectedBoleto(boleto);
+        setSelectedNumbers([number]);
+        setBuyerName(boleto.nombre_comprador || '');
+        setBuyerPhone(boleto.telefono_comprador || '+569');
+        setSaleStatus(boleto.estado === 'reservado' ? 'pagado' : boleto.estado);
+        setFeedback(null);
+        setIsTicketModalOpen(true);
+      }
       return;
     }
 
-    setSelectedBoleto(boleto);
-    setBuyerName(boleto.nombre_comprador || '');
-    setBuyerPhone(boleto.telefono_comprador || '');
-    setSaleStatus(boleto.estado === 'disponible' ? 'pagado' : boleto.estado);
-    setFeedback(null);
+    // Si es disponible, acumular o desmarcar en selección múltiple
+    setSelectedNumbers((prev) => {
+      const exists = prev.includes(number);
+      const next = exists ? prev.filter((n) => n !== number) : [...prev, number];
+      if (next.length === 1 && !exists) {
+        setSelectedBoleto(boleto);
+      } else if (next.length === 0) {
+        setSelectedBoleto(null);
+      }
+      return next;
+    });
   };
 
+  // Guardar venta de uno o múltiples boletos
   const handleSaveSale = async (e) => {
-    e.preventDefault();
-    if (!selectedBoleto || !buyerName.trim()) return;
+    if (e && e.preventDefault) e.preventDefault();
+    if (!buyerName.trim() || !selectedRifa?.id) return;
+
+    const numbersToSave = selectedNumbers.length > 0 ? selectedNumbers : (selectedBoleto ? [selectedBoleto.numero] : []);
+    if (numbersToSave.length === 0) return;
 
     setSavingSale(true);
     try {
-      await updateBoletoVenta(selectedBoleto.id, {
-        nombre_comprador: buyerName.trim(),
-        telefono_comprador: buyerPhone.trim(),
-        vendedor_id: user?.id,
-        estado: saleStatus,
-      });
+      if (numbersToSave.length > 1) {
+        await updateBoletosBatch(selectedRifa.id, numbersToSave, {
+          nombre_comprador: buyerName.trim(),
+          telefono_comprador: buyerPhone.trim(),
+          vendedor_id: user?.id,
+          estado: saleStatus,
+        });
 
-      setFeedback({
-        type: 'success',
-        message: `¡Boleto #${selectedBoleto.numero} registrado con éxito!`,
-      });
+        setFeedback({
+          type: 'success',
+          message: `¡${numbersToSave.length} boletos registrados con éxito!`,
+        });
+      } else {
+        const singleNum = numbersToSave[0];
+        const singleBoleto = boletos.find((b) => b.numero === singleNum) || selectedBoleto;
+        await updateBoletoVenta(singleBoleto.id, {
+          nombre_comprador: buyerName.trim(),
+          telefono_comprador: buyerPhone.trim(),
+          vendedor_id: user?.id,
+          estado: saleStatus,
+        });
+
+        setFeedback({
+          type: 'success',
+          message: `¡Boleto #${singleNum} registrado con éxito!`,
+        });
+      }
 
       await loadBoletos();
 
       setTimeout(() => {
+        setIsTicketModalOpen(false);
+        setSelectedNumbers([]);
         setSelectedBoleto(null);
         setFeedback(null);
+        setBuyerName('');
+        setBuyerPhone('+569');
       }, 1200);
     } catch (err) {
       console.error('Error guardando venta:', err);
@@ -106,6 +174,40 @@ const CatalogoVentas = () => {
     }
   };
 
+  const handleApprovePending = async (boleto) => {
+    setSavingSale(true);
+    try {
+      await updateBoletoVenta(boleto.id, {
+        nombre_comprador: boleto.nombre_comprador,
+        telefono_comprador: boleto.telefono_comprador,
+        vendedor_id: user?.id,
+        estado: 'pagado',
+      });
+      await loadBoletos();
+    } catch (err) {
+      console.error('Error aprobando:', err);
+    } finally {
+      setSavingSale(false);
+    }
+  };
+
+  const handleRejectPending = async (boleto) => {
+    setSavingSale(true);
+    try {
+      await updateBoletoVenta(boleto.id, {
+        nombre_comprador: null,
+        telefono_comprador: null,
+        vendedor_id: null,
+        estado: 'disponible',
+      });
+      await loadBoletos();
+    } catch (err) {
+      console.error('Error rechazando:', err);
+    } finally {
+      setSavingSale(false);
+    }
+  };
+
   // Mis métricas de vendedor
   const misBoletos = boletos.filter((b) => b.vendedor_id === user?.id);
   const totalRecaudado = misBoletos.reduce((acc) => acc + (parseFloat(selectedRifa?.precio) || 0), 0);
@@ -113,57 +215,82 @@ const CatalogoVentas = () => {
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark text-earthy-navy dark:text-white transition-colors">
       {/* Header del Vendedor */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-6 py-4 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-700 flex items-center justify-center p-1 border border-gray-200 dark:border-gray-600 shadow-sm">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-700 flex items-center justify-center p-1 border border-gray-200 dark:border-gray-600 shadow-sm flex-shrink-0">
               <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Logo" className="w-full h-full object-contain" />
             </div>
-            <div>
-              <h1 className="text-lg font-bold leading-tight">
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-base font-bold leading-tight truncate">
                 {activeOrg?.nombre || 'Organización'}
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
                 Portal de Ventas • <span className="font-semibold text-primary">{user?.nombre || user?.email}</span>
               </p>
             </div>
           </div>
 
-          <button
-            onClick={() => logout()}
-            className="text-xs font-semibold px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-          >
-            Cerrar Sesión
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {role === 'admin' && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="text-xs font-semibold px-3 py-1.5 sm:py-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition flex items-center gap-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Panel Admin</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => logout()}
+              className="text-xs font-semibold px-3 py-1.5 sm:py-2 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition flex items-center gap-1.5 text-gray-700 dark:text-gray-200"
+              title="Cerrar Sesión"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Salir</span>
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6 space-y-6">
+      <main className="max-w-7xl mx-auto p-4 sm:p-6 space-y-5 sm:space-y-6">
         {/* Métricas rápidas */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Boletos Vendidos por Mí</p>
-            <p className="text-3xl font-bold text-primary mt-1">{misBoletos.length}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Boletos Vendidos</p>
+              <Ticket className="w-4 h-4 text-primary opacity-80" />
+            </div>
+            <p className="text-xl sm:text-3xl font-bold text-primary mt-1">{misBoletos.length}</p>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total Recaudado por Mí</p>
-            <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">${totalRecaudado.toLocaleString()}</p>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Total Recaudado</p>
+              <DollarSign className="w-4 h-4 text-emerald-600 opacity-80" />
+            </div>
+            <p className="text-xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">${totalRecaudado.toLocaleString()}</p>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Precio por Boleto</p>
-            <p className="text-3xl font-bold text-gray-800 dark:text-gray-200 mt-1">${parseFloat(selectedRifa?.precio || 0).toLocaleString()}</p>
+          <div className="col-span-2 sm:col-span-1 bg-white dark:bg-gray-800 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Precio por Boleto</p>
+              <Award className="w-4 h-4 text-gray-500 opacity-80" />
+            </div>
+            <p className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200 mt-1">${parseFloat(selectedRifa?.precio || 0).toLocaleString()}</p>
           </div>
         </div>
 
         {/* Selector de Rifa */}
         {rifas.length > 1 && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Seleccionar Rifa:</label>
             <select
               value={selectedRifa?.id || ''}
               onChange={(e) => {
                 const found = rifas.find((r) => r.id === e.target.value);
                 setSelectedRifa(found);
+                setPageIndex(0);
+                setSelectedBoleto(null);
               }}
               className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-medium"
             >
@@ -186,174 +313,161 @@ const CatalogoVentas = () => {
 
         {/* Si no hay rifas creadas */}
         {!loading && rifas.length === 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-12 text-center border border-gray-100 dark:border-gray-700 max-w-lg mx-auto">
-            <div className="text-4xl mb-3">📋</div>
-            <h3 className="text-lg font-bold">No hay rifas activas</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-8 sm:p-12 text-center border border-gray-100 dark:border-gray-700 max-w-lg mx-auto">
+            <div className="w-16 h-16 mx-auto mb-3 bg-primary/10 text-primary rounded-2xl flex items-center justify-center">
+              <Ticket className="w-8 h-8" />
+            </div>
+            <h3 className="text-base sm:text-lg font-bold">No hay rifas activas</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Tu administrador aún no ha creado rifas en esta organización.
             </p>
           </div>
         )}
 
-        {/* Cuadrícula de Boletos */}
+        {/* Layout Principal: Reservas y Grilla */}
         {!loading && selectedRifa && (
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-700 pb-4">
-              <div>
-                <h2 className="text-lg font-bold">{selectedRifa.titulo}</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{selectedRifa.descripcion || 'Haz clic en un boleto disponible para registrar una venta.'}</p>
-              </div>
+          <div className="space-y-5 sm:space-y-6">
+            
+            {/* Reservas por Aprobar (Aparecen primero en móvil y arriba si existen) */}
+            <PendingReservations
+              boletos={boletos.filter(b => b.estado === 'reservado' && (!b.vendedor_id || b.vendedor_id === user?.id))}
+              onApprove={handleApprovePending}
+              onReject={handleRejectPending}
+              loading={savingSale}
+            />
 
-              {/* Leyenda */}
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3.5 h-3.5 rounded-md bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600" />
-                  <span className="text-gray-600 dark:text-gray-400">Disponible</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3.5 h-3.5 rounded-md bg-emerald-500" />
-                  <span className="text-gray-600 dark:text-gray-400">Vendido por Mí</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3.5 h-3.5 rounded-md bg-amber-400" />
-                  <span className="text-gray-600 dark:text-gray-400">Reservado</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3.5 h-3.5 rounded-md bg-gray-400 opacity-50" />
-                  <span className="text-gray-600 dark:text-gray-400">Otro Vendedor</span>
+            {/* Grilla Principal */}
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700 gap-2">
+                <h3 className="font-bold text-sm">Boletos Disponibles</h3>
+                <div className="flex items-center gap-3 sm:gap-4 text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-md bg-red-500" /> Vendidos: {boletos.filter(b => b.estado === 'pagado').length}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-md bg-amber-400" /> Pendientes: {boletos.filter(b => b.estado === 'reservado').length}
+                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* Grid */}
-            <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-20 gap-2">
-              {boletos.map((boleto) => {
-                const isMine = boleto.vendedor_id === user?.id;
-                const isSold = boleto.estado === 'pagado';
-                const isPending = boleto.estado === 'reservado';
-                const isAvailable = boleto.estado === 'disponible';
-
-                let colorClasses = 'bg-gray-50 dark:bg-gray-700/60 hover:bg-primary/20 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-600';
-
-                if (isMine && isSold) {
-                  colorClasses = 'bg-emerald-500 text-white font-bold border-emerald-600 shadow-sm';
-                } else if (isMine && isPending) {
-                  colorClasses = 'bg-amber-400 text-gray-900 font-bold border-amber-500';
-                } else if (!isAvailable) {
-                  colorClasses = 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 opacity-40 cursor-not-allowed';
-                }
+              {/* Grilla dinámica según total_boletos de la rifa */}
+              {(() => {
+                const totalRifaNumbers = selectedRifa?.total_boletos || 100;
+                const totalRifaPages = Math.max(1, Math.ceil(totalRifaNumbers / 100));
 
                 return (
-                  <button
-                    key={boleto.id}
-                    onClick={() => handleOpenSaleModal(boleto)}
-                    disabled={!isAvailable && !isMine && role !== 'admin'}
-                    className={`aspect-square rounded-xl text-xs font-semibold border flex items-center justify-center transition active:scale-95 ${colorClasses}`}
-                    title={
-                      isAvailable
-                        ? `Boleto #${boleto.numero} - Disponible`
-                        : `Boleto #${boleto.numero} - ${boleto.nombre_comprador || 'Ocupado'}`
-                    }
-                  >
-                    {boleto.numero}
-                  </button>
+                  <>
+                    <RifaGrid
+                      soldNumbers={boletos.filter(b => b.estado === 'pagado').map(b => b.numero)}
+                      pendingNumbers={boletos.filter(b => b.estado === 'reservado').map(b => b.numero)}
+                      mySoldNumbers={boletos.filter(b => b.estado === 'pagado' && b.vendedor_id === user?.id).map(b => b.numero)}
+                      selectedNumbers={selectedNumbers}
+                      currentNumber={selectedBoleto?.numero}
+                      onNumberClick={handleNumberClick}
+                      pageIndex={pageIndex}
+                      totalNumbers={totalRifaNumbers}
+                      isAdmin={role === 'admin'}
+                    />
+
+                    <div className="flex justify-center items-center gap-2 sm:gap-3 pt-4 border-t border-gray-100 dark:border-gray-700 flex-wrap">
+                      <button
+                        onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+                        disabled={pageIndex === 0}
+                        className="px-3 py-1.5 rounded-xl border text-xs font-semibold disabled:opacity-40 flex items-center gap-1"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>Anterior</span>
+                      </button>
+                      <span className="text-[11px] sm:text-xs text-gray-500">
+                        Página {pageIndex + 1} de {totalRifaPages} ({totalRifaNumbers} total)
+                      </span>
+                      <button
+                        onClick={() => setPageIndex((p) => Math.min(totalRifaPages - 1, p + 1))}
+                        disabled={pageIndex >= totalRifaPages - 1}
+                        className="px-3 py-1.5 rounded-xl border text-xs font-semibold disabled:opacity-40 flex items-center gap-1"
+                      >
+                        <span>Siguiente</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </>
                 );
-              })}
+              })()}
             </div>
           </div>
         )}
       </main>
 
-      {/* Modal para Registrar Venta */}
-      {selectedBoleto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 border border-gray-100 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-gray-700">
-              <h3 className="font-bold text-lg">
-                Registrar Boleto #{selectedBoleto.numero}
-              </h3>
-              <button
-                onClick={() => setSelectedBoleto(null)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-full"
-              >
-                ✕
-              </button>
+      {/* Barra Flotante Inferior de Selección Múltiple */}
+      {selectedNumbers.length > 0 && !isTicketModalOpen && (
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-gray-900/95 text-white dark:bg-white/95 dark:text-gray-900 px-4 sm:px-5 py-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 border border-gray-700 dark:border-gray-200 animate-fadeIn backdrop-blur-md w-[calc(100%-2rem)] sm:w-auto max-w-lg">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+              {selectedNumbers.length}
+            </span>
+            <div className="text-xs truncate">
+              <span className="font-semibold">
+                {selectedNumbers.length === 1 ? '1 boleto' : `${selectedNumbers.length} boletos`}
+              </span>
+              {selectedRifa?.precio > 0 && (
+                <span className="text-emerald-400 dark:text-emerald-600 font-bold ml-1">
+                  (${(selectedNumbers.length * parseFloat(selectedRifa.precio)).toLocaleString()})
+                </span>
+              )}
             </div>
+          </div>
 
-            {feedback && (
-              <div
-                className={`mb-4 p-3 text-xs rounded-xl border ${
-                  feedback.type === 'success'
-                    ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200'
-                    : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200'
-                }`}
-              >
-                {feedback.message}
-              </div>
-            )}
-
-            <form onSubmit={handleSaveSale} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Nombre del Comprador
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={buyerName}
-                  onChange={(e) => setBuyerName(e.target.value)}
-                  placeholder="Nombre y apellido"
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Teléfono / WhatsApp
-                </label>
-                <input
-                  type="tel"
-                  value={buyerPhone}
-                  onChange={(e) => setBuyerPhone(e.target.value)}
-                  placeholder="+56 9 1234 5678"
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Estado de la Venta
-                </label>
-                <select
-                  value={saleStatus}
-                  onChange={(e) => setSaleStatus(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl text-sm"
-                >
-                  <option value="pagado">Pagado (Confirmado)</option>
-                  <option value="reservado">Reservado (Pendiente de pago)</option>
-                </select>
-              </div>
-
-              <div className="pt-2 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedBoleto(null)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingSale}
-                  className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:opacity-90 transition shadow-md shadow-primary/20 disabled:opacity-50"
-                >
-                  {savingSale ? 'Guardando...' : 'Confirmar Venta'}
-                </button>
-              </div>
-            </form>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => {
+                setBuyerName('');
+                setBuyerPhone('+569');
+                setSaleStatus('pagado');
+                setFeedback(null);
+                setIsTicketModalOpen(true);
+              }}
+              className="px-3.5 py-2 rounded-xl bg-primary text-white font-bold text-xs hover:opacity-90 transition shadow-sm flex items-center gap-1.5 active:scale-95"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Registrar</span>
+            </button>
+            <button
+              onClick={() => {
+                setSelectedNumbers([]);
+                setSelectedBoleto(null);
+              }}
+              className="p-2 text-xs font-medium opacity-70 hover:opacity-100 rounded-xl hover:bg-white/10 dark:hover:bg-black/10 transition"
+              title="Desmarcar seleccionados"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
+
+      {/* MODAL GESTIONAR BOLETO */}
+      <TicketModal
+        isOpen={isTicketModalOpen}
+        onClose={() => {
+          setIsTicketModalOpen(false);
+          setSelectedNumbers([]);
+          setSelectedBoleto(null);
+          setFeedback(null);
+        }}
+        selectedBoleto={selectedBoleto}
+        selectedNumbers={selectedNumbers}
+        ticketPrice={selectedRifa?.precio || 0}
+        buyerName={buyerName}
+        setBuyerName={setBuyerName}
+        buyerPhone={buyerPhone}
+        setBuyerPhone={setBuyerPhone}
+        saleStatus={saleStatus}
+        setSaleStatus={setSaleStatus}
+        onSave={handleSaveSale}
+        savingSale={savingSale}
+        isAdmin={role === 'admin'}
+        feedback={feedback}
+      />
     </div>
   );
 };

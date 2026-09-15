@@ -2,6 +2,21 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrganization } from '../../hooks/useOrganization';
+import {
+  Sparkles,
+  Rocket,
+  ArrowRight,
+  Search,
+  Smartphone,
+  Users,
+  Image as ImageIcon,
+  MessageSquare,
+  BarChart3,
+  ShieldCheck,
+  ExternalLink,
+  Settings,
+  Ticket
+} from 'lucide-react';
 
 const SaasHome = () => {
   const navigate = useNavigate();
@@ -37,9 +52,6 @@ const SaasHome = () => {
               <span className="text-base font-black tracking-tight uppercase leading-tight block">
                 Sistema de Gestión de Rifas
               </span>
-              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
-                Plataforma SaaS Multi-Tenant
-              </span>
             </div>
           </div>
 
@@ -59,7 +71,17 @@ const SaasHome = () => {
                 onClick={() => navigate(role === 'admin' ? '/admin' : '/vendedor')}
                 className="px-4 py-2 rounded-xl bg-primary text-white font-bold text-xs hover:opacity-90 transition shadow-md shadow-primary/20 flex items-center gap-2"
               >
-                <span>{role === 'admin' ? '⚙️ Mi Panel Admin' : '🎟️ Portal Vendedor'}</span>
+                {role === 'admin' ? (
+                  <>
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>Mi Panel Admin</span>
+                  </>
+                ) : (
+                  <>
+                    <Ticket className="w-3.5 h-3.5" />
+                    <span>Portal Vendedor</span>
+                  </>
+                )}
               </button>
             ) : (
               <>
@@ -92,7 +114,7 @@ const SaasHome = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-8 relative z-10">
             <div className="text-center max-w-3xl mx-auto space-y-6">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20 animate-fadeIn">
-                <span>✨</span>
+                <Sparkles className="w-3.5 h-3.5" />
                 <span>La plataforma definitiva para rifas y sorteos transparentes</span>
               </div>
 
@@ -111,15 +133,17 @@ const SaasHome = () => {
                   onClick={() => navigate('/login')}
                   className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-primary text-white font-black text-sm uppercase tracking-wider hover:opacity-95 hover:scale-105 transition-all shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
                 >
-                  <span>🚀 Crear mi Primera Rifa</span>
-                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  <Rocket className="w-4 h-4" />
+                  <span>Crear mi Primera Rifa</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
 
                 <a
                   href="#buscar"
                   className="w-full sm:w-auto px-6 py-4 rounded-2xl border border-gray-300 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm text-xs font-bold uppercase tracking-wider hover:bg-white dark:hover:bg-gray-800 transition flex items-center justify-center gap-2"
                 >
-                  <span>🔍 Ingresar a una Rifa</span>
+                  <Search className="w-4 h-4 text-primary" />
+                  <span>Ingresar a una Rifa</span>
                 </a>
               </div>
 
@@ -173,15 +197,14 @@ const SaasHome = () => {
                         type="button"
                         onClick={() => !isSold && setDemoSelectedNumber(num)}
                         disabled={isSold}
-                        className={`aspect-square rounded-xl font-black text-xs flex items-center justify-center transition-all ${
-                          isSold
+                        className={`aspect-square rounded-xl font-black text-xs flex items-center justify-center transition-all ${isSold
                             ? 'bg-red-200 dark:bg-red-900/40 text-red-500 cursor-not-allowed line-through'
                             : isSelected
-                            ? 'bg-primary text-white scale-110 shadow-lg shadow-primary/30 ring-2 ring-primary ring-offset-2'
-                            : isPending
-                            ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
-                            : 'bg-gray-100 dark:bg-gray-800 hover:bg-primary/20 text-gray-700 dark:text-gray-200'
-                        }`}
+                              ? 'bg-primary text-white scale-110 shadow-lg shadow-primary/30 ring-2 ring-primary ring-offset-2'
+                              : isPending
+                                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                                : 'bg-gray-100 dark:bg-gray-800 hover:bg-primary/20 text-gray-700 dark:text-gray-200'
+                          }`}
                       >
                         {num}
                       </button>
@@ -221,7 +244,7 @@ const SaasHome = () => {
                 className="px-6 py-3 bg-primary text-white font-bold text-xs uppercase tracking-wider rounded-xl hover:opacity-90 transition shadow-md shadow-primary/20 flex items-center justify-center gap-2"
               >
                 <span>Ir a la Rifa</span>
-                <span className="material-symbols-outlined text-sm">open_in_new</span>
+                <ExternalLink className="w-4 h-4" />
               </button>
             </form>
           </div>
@@ -239,8 +262,8 @@ const SaasHome = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Card 1 */}
             <div className="p-8 rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl transition-all duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-2xl">
-                📱
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                <Smartphone className="w-6 h-6" />
               </div>
               <h3 className="font-bold text-base">Página Pública Interactiva</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
@@ -250,8 +273,8 @@ const SaasHome = () => {
 
             {/* Card 2 */}
             <div className="p-8 rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl transition-all duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-2xl">
-                👥
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                <Users className="w-6 h-6" />
               </div>
               <h3 className="font-bold text-base">Equipo de Vendedores (RBAC)</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
@@ -261,8 +284,8 @@ const SaasHome = () => {
 
             {/* Card 3 */}
             <div className="p-8 rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl transition-all duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-2xl">
-                🖼️
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                <ImageIcon className="w-6 h-6" />
               </div>
               <h3 className="font-bold text-base">Biblioteca Multimedia</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
@@ -272,8 +295,8 @@ const SaasHome = () => {
 
             {/* Card 4 */}
             <div className="p-8 rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl transition-all duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-2xl">
-                💬
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                <MessageSquare className="w-6 h-6" />
               </div>
               <h3 className="font-bold text-base">Compartir por WhatsApp</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
@@ -283,8 +306,8 @@ const SaasHome = () => {
 
             {/* Card 5 */}
             <div className="p-8 rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl transition-all duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-2xl">
-                📊
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                <BarChart3 className="w-6 h-6" />
               </div>
               <h3 className="font-bold text-base">Métricas y Exportación CSV</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
@@ -294,8 +317,8 @@ const SaasHome = () => {
 
             {/* Card 6 */}
             <div className="p-8 rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl transition-all duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-2xl">
-                🔒
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6" />
               </div>
               <h3 className="font-bold text-base">Seguridad Concurrente</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">

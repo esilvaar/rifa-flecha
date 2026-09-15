@@ -7,6 +7,25 @@ import {
   checkSlugAvailable,
 } from '../../../services/organizationService';
 import { formatSlug } from '../../../utils/slugUtils';
+import {
+  Images,
+  Eye,
+  ExternalLink,
+  FileText,
+  SlidersHorizontal,
+  RotateCcw,
+  Trash2,
+  Gift,
+  Plus,
+  Save,
+  Smartphone,
+  X,
+  Check,
+  Clock,
+  Upload,
+  FolderOpen,
+  Calendar,
+} from 'lucide-react';
 
 const DEFAULT_PRESETS = [
   { title: "Premio Principal", desc: "Gran premio del sorteo", img: `${process.env.PUBLIC_URL}/assets/mecedora.png` },
@@ -38,6 +57,7 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
   const [slug, setSlug] = useState('');
   const [slugStatus, setSlugStatus] = useState({ state: 'idle', message: '' }); // 'idle' | 'checking' | 'available' | 'taken'
   const [descripcion, setDescripcion] = useState('');
+  const [mobileTab, setMobileTab] = useState('editor'); // 'editor' | 'preview'
 
   // Estados de la Foto Principal (con ajuste de posición y encuadre)
   const [mainImageUrl, setMainImageUrl] = useState('');
@@ -298,12 +318,12 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
   const publicUrl = `${window.location.origin}/#/rifa/${slug || selectedRifa.slug || selectedRifa.id}`;
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="space-y-6 sm:space-y-8 animate-fadeIn">
       {/* Barra de cabecera con botón de vista en vivo */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold">Personalizar Página Pública</h2>
+            <h2 className="text-base sm:text-lg font-bold">Personalizar Página Pública</h2>
             <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold">
               {activeOrg?.nombre || 'Organización'}
             </span>
@@ -313,35 +333,66 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => openGalleryFor('main')}
             className="px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs font-semibold transition flex items-center gap-1.5"
             title="Ver todas las fotos subidas por tu organización"
           >
-            <span>🖼️ Biblioteca ({orgGallery.length})</span>
+            <Images className="w-4 h-4 text-primary" />
+            <span>Biblioteca ({orgGallery.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => window.open(publicUrl, '_blank')}
-            className="px-4 py-2 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 transition flex items-center justify-center gap-2"
+            className="px-4 py-2 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 transition flex items-center justify-center gap-1.5 active:scale-95"
           >
-            <span>👁️ Ver en Vivo</span>
-            <span className="text-[10px] opacity-70">↗</span>
+            <Eye className="w-4 h-4" />
+            <span>Ver en Vivo</span>
+            <ExternalLink className="w-3 h-3 opacity-60" />
           </button>
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Selector de Pestaña en Móvil */}
+      <div className="flex lg:hidden bg-gray-100 dark:bg-gray-700/50 p-1 rounded-2xl">
+        <button
+          type="button"
+          onClick={() => setMobileTab('editor')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            mobileTab === 'editor'
+              ? 'bg-white dark:bg-gray-800 shadow-sm text-primary'
+              : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Editor de Contenido</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab('preview')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            mobileTab === 'preview'
+              ? 'bg-white dark:bg-gray-800 shadow-sm text-primary'
+              : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+          }`}
+        >
+          <Smartphone className="w-3.5 h-3.5" />
+          <span>Vista Previa</span>
+        </button>
+      </div>
+
+      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Columna Izquierda: Formulario de edición */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className={`lg:col-span-2 space-y-6 ${mobileTab === 'editor' ? 'block' : 'hidden lg:block'}`}>
 
           {/* Bloque 1: Textos Principales y Banner */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
             <h3 className="text-sm font-bold flex items-center gap-2">
-              <span>📝</span> Textos Principales y Foto Destacada
+              <FileText className="w-4 h-4 text-primary" />
+              <span>Textos Principales y Foto Destacada</span>
             </h3>
 
             <div>
@@ -365,17 +416,17 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                 </label>
                 {slugStatus.state === 'checking' && (
                   <span className="text-[11px] text-gray-400 flex items-center gap-1">
-                    <span className="animate-spin text-xs">⏳</span> Comprobando...
+                    <Clock className="w-3 h-3 animate-spin" /> Comprobando...
                   </span>
                 )}
                 {slugStatus.state === 'available' && (
                   <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                    ✓ Disponible
+                    <Check className="w-3 h-3" /> Disponible
                   </span>
                 )}
                 {slugStatus.state === 'taken' && (
                   <span className="text-[11px] text-red-500 font-bold flex items-center gap-1">
-                    ✕ Ya en uso por otra rifa
+                    <X className="w-3 h-3" /> Ya en uso por otra rifa
                   </span>
                 )}
               </div>
@@ -432,13 +483,15 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                     <button
                       type="button"
                       onClick={() => openGalleryFor('main')}
-                      className="text-[11px] font-bold text-gray-500 hover:text-primary flex items-center gap-0.5"
+                      className="text-[11px] font-bold text-gray-500 hover:text-primary flex items-center gap-1"
                       title="Seleccionar de la biblioteca"
                     >
-                      <span>🖼️ Elegir</span>
+                      <Images className="w-3.5 h-3.5" />
+                      <span>Elegir</span>
                     </button>
                     <label className="cursor-pointer text-[11px] font-bold text-primary hover:underline flex items-center gap-1">
-                      <span>{uploadingMain ? '⏳ Subiendo...' : '📁 Subir foto'}</span>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingMain ? 'Subiendo...' : 'Subir foto'}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -463,27 +516,30 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                   <div className="p-3.5 rounded-2xl bg-gray-50/80 dark:bg-gray-700/40 border border-gray-200/80 dark:border-gray-600 space-y-3 animate-fadeIn">
                     {/* Botones de acción: Mantener original y Eliminar foto */}
                     <div className="flex items-center justify-between border-b border-gray-200/60 dark:border-gray-600/60 pb-2">
-                      <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1">
-                        <span>⚙️</span> Opciones de la Imagen
+                      <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+                        <span>Opciones de la Imagen</span>
                       </span>
                       <div className="flex items-center gap-2">
                         {selectedRifa?.imagen_url && (
                           <button
                             type="button"
                             onClick={handleRestoreMainImage}
-                            className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                            className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                             title="Deshacer cambios y volver a la foto guardada"
                           >
-                            <span>↺ Mantener guardada</span>
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Mantener guardada</span>
                           </button>
                         )}
                         <button
                           type="button"
                           onClick={handleRemoveMainImage}
-                          className="text-[10px] font-semibold text-red-500 hover:underline flex items-center gap-0.5"
+                          className="text-[10px] font-semibold text-red-500 hover:underline flex items-center gap-1"
                           title="Eliminar esta foto del banner"
                         >
-                          <span>✕ Eliminar foto</span>
+                          <Trash2 className="w-3 h-3" />
+                          <span>Eliminar</span>
                         </button>
                       </div>
                     </div>
@@ -499,26 +555,28 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                           <button
                             type="button"
                             onClick={() => setMainImageFit('cover')}
-                            className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-bold transition ${
+                            className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1 ${
                               mainImageFit === 'cover'
                                 ? 'bg-primary text-white shadow-sm'
                                 : 'text-gray-500 hover:text-gray-800 dark:hover:text-white'
                             }`}
                             title="Llenar todo el marco"
                           >
-                            🖼️ Llenar
+                            <Images className="w-3 h-3" />
+                            <span>Llenar</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => setMainImageFit('contain')}
-                            className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-bold transition ${
+                            className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1 ${
                               mainImageFit === 'contain'
                                 ? 'bg-primary text-white shadow-sm'
                                 : 'text-gray-500 hover:text-gray-800 dark:hover:text-white'
                             }`}
                             title="Ver foto entera sin recortes"
                           >
-                            🔍 Completa
+                            <Eye className="w-3 h-3" />
+                            <span>Completa</span>
                           </button>
                         </div>
                       </div>
@@ -539,7 +597,7 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                             }`}
                             title="Enfocar parte superior"
                           >
-                            ⬆️ Arriba
+                            Arriba
                           </button>
                           <button
                             type="button"
@@ -551,7 +609,7 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                             }`}
                             title="Centrar"
                           >
-                            ⏺️ Centro
+                            Centro
                           </button>
                           <button
                             type="button"
@@ -563,7 +621,7 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                             }`}
                             title="Enfocar parte inferior"
                           >
-                            ⬇️ Abajo
+                            Abajo
                           </button>
                         </div>
                       </div>
@@ -575,17 +633,19 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
           </div>
 
           {/* Bloque 2: Lista de Premios */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold flex items-center gap-2">
-                <span>🎁</span> Premios a Sortear ({premios.length})
+                <Gift className="w-4 h-4 text-primary" />
+                <span>Premios a Sortear ({premios.length})</span>
               </h3>
               <button
                 type="button"
                 onClick={handleAddPrize}
-                className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 transition flex items-center gap-1"
+                className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 transition flex items-center gap-1.5 active:scale-95"
               >
-                <span>➕ Agregar Premio</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Agregar Premio</span>
               </button>
             </div>
 
@@ -602,10 +662,11 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                     <button
                       type="button"
                       onClick={() => handleRemovePrize(idx)}
-                      className="text-red-500 hover:text-red-700 text-xs font-semibold p-1"
+                      className="text-red-500 hover:text-red-700 text-xs font-semibold p-1 flex items-center gap-1"
                       title="Eliminar este premio"
                     >
-                      Eliminar
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Eliminar</span>
                     </button>
                   </div>
 
@@ -627,12 +688,14 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                           <button
                             type="button"
                             onClick={() => openGalleryFor(idx)}
-                            className="text-[10px] font-bold text-gray-500 hover:text-primary flex items-center gap-0.5"
+                            className="text-[10px] font-bold text-gray-500 hover:text-primary flex items-center gap-1"
                           >
-                            <span>🖼️ Elegir</span>
+                            <Images className="w-3 h-3" />
+                            <span>Elegir</span>
                           </button>
-                          <label className="cursor-pointer text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5">
-                            <span>{uploadingPrizeIndex === idx ? '⏳...' : '📁 Subir foto'}</span>
+                          <label className="cursor-pointer text-[10px] font-bold text-primary hover:underline flex items-center gap-1">
+                            <Upload className="w-3 h-3" />
+                            <span>{uploadingPrizeIndex === idx ? '...' : 'Subir'}</span>
                             <input
                               type="file"
                               accept="image/*"
@@ -669,9 +732,10 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
           </div>
 
           {/* Bloque 3: Términos y Condiciones */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
             <h3 className="text-sm font-bold flex items-center gap-2">
-              <span>📋</span> Términos, Entrega y Condiciones
+              <FileText className="w-4 h-4 text-primary" />
+              <span>Términos, Entrega y Condiciones</span>
             </h3>
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
@@ -692,19 +756,21 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-3 rounded-2xl bg-primary text-white font-bold text-xs hover:opacity-90 transition shadow-lg shadow-primary/20 flex items-center gap-2 disabled:opacity-50"
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-primary text-white font-bold text-xs hover:opacity-90 transition shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
             >
-              <span>{saving ? 'Guardando Cambios...' : '💾 Guardar y Publicar Cambios'}</span>
+              <Save className="w-4 h-4" />
+              <span>{saving ? 'Guardando Cambios...' : 'Guardar y Publicar Cambios'}</span>
             </button>
           </div>
         </div>
 
         {/* Columna Derecha: Vista Previa en Tiempo Real */}
-        <div className="space-y-6">
-          <div className="sticky top-24 bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+        <div className={`space-y-6 ${mobileTab === 'preview' ? 'block' : 'hidden lg:block'}`}>
+          <div className="lg:sticky lg:top-24 bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-3">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                📱 Vista Previa Cliente
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-primary" />
+                <span>Vista Previa Cliente</span>
               </span>
               <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-bold">
                 Online
@@ -744,8 +810,9 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
               </div>
 
               {fechaSorteo && (
-                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg text-center">
-                  📅 Sorteo: {new Date(fechaSorteo).toLocaleDateString()}
+                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg text-center flex items-center justify-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Sorteo: {new Date(fechaSorteo).toLocaleDateString()}</span>
                 </div>
               )}
 
@@ -775,9 +842,10 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
             <button
               type="button"
               onClick={() => window.open(publicUrl, '_blank')}
-              className="w-full py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs font-semibold transition text-center"
+              className="w-full py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1.5"
             >
-              Abrir enlace público ↗
+              <span>Abrir enlace público</span>
+              <ExternalLink className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -785,25 +853,31 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
 
       {/* --- MODAL GALERÍA DE LA ORGANIZACIÓN --- */}
       {galleryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-6 border border-gray-100 dark:border-gray-700 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-3xl max-w-2xl w-full p-5 sm:p-6 border-t sm:border border-gray-100 dark:border-gray-700 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700">
-              <div>
-                <h3 className="font-bold text-base flex items-center gap-2">
-                  <span>🖼️</span> Galería de {activeOrg?.nombre || 'la Organización'}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {galleryTarget === 'main'
-                    ? 'Selecciona una imagen para la foto principal'
-                    : `Selecciona una imagen para el Premio #${galleryTarget + 1}`}
-                </p>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <Images className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base">
+                    Galería de {activeOrg?.nombre || 'la Organización'}
+                  </h3>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {galleryTarget === 'main'
+                      ? 'Selecciona una imagen para la foto principal'
+                      : `Selecciona una imagen para el Premio #${galleryTarget + 1}`}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setGalleryModalOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg"
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-full"
+                aria-label="Cerrar modal"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -815,7 +889,7 @@ const CustomizePublicPage = ({ selectedRifa, activeOrg, onRifaUpdated, showNotif
                 </div>
               ) : orgGallery.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
-                  <div className="text-3xl">📂</div>
+                  <FolderOpen className="w-10 h-10 text-gray-400 mx-auto" />
                   <p className="text-xs font-bold text-gray-500">Aún no has subido fotos en esta organización.</p>
                   <p className="text-[11px] text-gray-400">Usa el botón "Subir foto" para agregar imágenes a tu biblioteca permanente.</p>
                 </div>
